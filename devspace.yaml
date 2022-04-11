@@ -1,0 +1,58 @@
+version: v2beta1
+name: cluster-api-provider-vcluster
+
+vars:
+  IMAGE: loftsh/cluster-api-provider-vcluster
+
+images:
+  provider:
+    image: ${IMAGE}
+    rebuildStrategy: ignoreContextChanges
+    docker: {}
+    target: builder
+
+deployments:
+  provider:
+    namespace: cluster-api-provider-vcluster-system
+    updateImageTags: true
+    kubectl:
+      kustomize: true
+      manifests:
+      - config/default/
+dev:
+  provider:
+    namespace: cluster-api-provider-vcluster-system
+    imageSelector: ${IMAGE}
+    workingDir: /workspace
+    terminal:
+      command: "./devspace_start.sh"
+    ports:
+    - port: 2346:2345
+    sync:
+    - path: ./
+      excludePaths:
+        - '**'
+        - '!/pkg'
+        - '!/api'
+        - '!/controllers'
+        - '!/vendor'
+        - '!/hack'
+        - '!/config'
+        - '!/go.mod'
+        - '!/go.sum'
+        - '!/devspace_start.sh'
+        - 'Makefile'
+
+commands:
+  dev: |-
+    devspace run-pipeline dev -n cluster-api-provider-vcluster-system $@
+  deploy: |-
+    devspace run-pipeline --profile deploy -n cluster-api-provider-vcluster-system -d $@
+
+profiles:
+  - name: deploy
+    patches:
+      - op: remove
+        path: images.provider.rebuildStrategy
+      - op: remove
+        path: images.provider.target

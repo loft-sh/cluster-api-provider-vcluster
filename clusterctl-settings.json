@@ -1,0 +1,7 @@
+{
+  "name": "infrastructure-vcluster",
+  "config": {
+    "componentsFile": "infrastructure-components.yaml",
+    "nextVersion": "v0.1.0"
+  }
+}

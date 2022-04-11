@@ -1,0 +1,25 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: VCluster
+    name: ${CLUSTER_NAME}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  kubernetesVersion: ${KUBERNETES_VERSION:=null}
+  helmRelease:
+    values: "${HELM_VALUES:=""}"
+    chart: 
+      name: ${CHART_NAME:=null}
+      repo: ${CHART_REPO:=null}
+      version: ${CHART_VERSION:=null}
+  controlPlaneEndpoint:
+    host: ${VCLUSTER_HOST:=""}
+    port: ${VCLUSTER_PORT:=0}

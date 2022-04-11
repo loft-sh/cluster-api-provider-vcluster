@@ -24,12 +24,18 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
+	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -41,6 +47,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -48,11 +55,14 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var namespace string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&namespace, "namespace", "", "The namespace watched by the controller manager.")
+
 	opts := zap.Options{
 		Development: true,
 	}
@@ -68,12 +78,29 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "4012c7fa.cluster.x-k8s.io",
+		Namespace:              namespace,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
+	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "unable to get config")
+		os.Exit(1)
+	}
+
+	if err = (&controllers.VClusterReconciler{
+		Client:      mgr.GetClient(),
+		HelmClient:  helm.NewClient(rawConfig),
+		HelmSecrets: helm.NewSecrets(mgr.GetClient()),
+		Log:         loghelper.New("vcluster-controller"),
+		Scheme:      mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

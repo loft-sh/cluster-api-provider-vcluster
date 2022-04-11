@@ -1,6 +1,7 @@
 
+TAG ?= main
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= loftsh/cluster-api-provider-vcluster:$(TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -108,7 +109,7 @@ controller-gen: ## Download controller-gen locally if necessary.
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 .PHONY: kustomize
 kustomize: ## Download kustomize locally if necessary.
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
+	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.4)
 
 ENVTEST = $(shell pwd)/bin/setup-envtest
 .PHONY: envtest
@@ -119,12 +120,26 @@ envtest: ## Download envtest-setup locally if necessary.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 define go-get-tool
 @[ -f $(1) ] || { \
-set -e ;\
-TMP_DIR=$$(mktemp -d) ;\
-cd $$TMP_DIR ;\
-go mod init tmp ;\
 echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
-rm -rf $$TMP_DIR ;\
+GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
 }
 endef
+
+##@ Release
+
+RELEASE_DIR ?= release
+PULL_POLICY ?= Always
+
+.PHONY: release
+release: manifests kustomize ## Builds the manifests to publish with a release.
+	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's@imagePullPolicy: IfNotPresent@imagePullPolicy: '"$(PULL_POLICY)"'@' ./config/default/manager_pull_policy_patch.yaml
+	sed -i'' -e 's@name: cluster-admin@name: $${CLUSTER_ROLE:=cluster-admin}@' ./config/rbac/provider_role_binding.yaml
+	mkdir -p $(RELEASE_DIR)/
+	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
+	cp templates/cluster-template* $(RELEASE_DIR)/
+	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
+# revert the values back to development ones 
+	sed -i'' -e 's@image: .*@image: loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
+	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml

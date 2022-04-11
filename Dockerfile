@@ -1,7 +1,22 @@
 # Build the manager binary
-FROM golang:1.17 as builder
+FROM golang:1.18 as builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /workspace
+
+# Install Delve for debugging
+RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
+
+# Install Helm 3
+RUN curl -s https://get.helm.sh/helm-v3.1.2-linux-amd64.tar.gz > helm3.tar.gz \
+ && tar -zxvf helm3.tar.gz linux-amd64/helm \
+ && chmod +x linux-amd64/helm \
+ && mv linux-amd64/helm $PWD/helm \
+ && rm helm3.tar.gz \
+ && rm -R linux-amd64
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -13,15 +28,17 @@ RUN go mod download
 COPY main.go main.go
 COPY api/ api/
 COPY controllers/ controllers/
+COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -o manager main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/helm .
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
