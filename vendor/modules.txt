@@ -167,6 +167,7 @@ github.com/loft-sh/vcluster/cmd/vclusterctl/log/terminal
 github.com/loft-sh/vcluster/pkg/helm
 github.com/loft-sh/vcluster/pkg/helm/values
 github.com/loft-sh/vcluster/pkg/log
+github.com/loft-sh/vcluster/pkg/util
 github.com/loft-sh/vcluster/pkg/util/applier
 github.com/loft-sh/vcluster/pkg/util/kubeconfig
 github.com/loft-sh/vcluster/pkg/util/loghelper

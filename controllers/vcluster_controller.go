@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	corev1 "k8s.io/api/core/v1"
@@ -36,6 +37,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,10 +55,11 @@ import (
 // VClusterReconciler reconciles a VCluster object
 type VClusterReconciler struct {
 	client.Client
-	HelmClient  helm.Client
-	HelmSecrets *helm.Secrets
-	Log         loghelper.Logger
-	Scheme      *runtime.Scheme
+	HelmClient        helm.Client
+	HelmSecrets       *helm.Secrets
+	Log               loghelper.Logger
+	Scheme            *runtime.Scheme
+	clusterKindExists bool
 }
 
 type Credentials struct {
@@ -114,19 +117,21 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	}
 
 	// is there an owner Cluster CR set by CAPI cluster controller?
-	//TODO: only check when installed via CAPI - Cluster CRD present?
-	clusterOwner := false
-	for _, v := range vCluster.OwnerReferences {
-		if v.Kind == "Cluster" {
-			clusterOwner = true
-			break
+	// only check when installed via CAPI - Cluster CRD is present
+	if r.clusterKindExists {
+		clusterOwner := false
+		for _, v := range vCluster.OwnerReferences {
+			if v.Kind == "Cluster" {
+				clusterOwner = true
+				break
+			}
 		}
-	}
-	if !clusterOwner {
-		// as per CAPI docs:
-		// The cluster controller will set an OwnerReference on the infrastructureCluster.
-		// This controller should normally take no action during reconciliation until it sees the OwnerReference.
-		return ctrl.Result{}, nil
+		if !clusterOwner {
+			// as per CAPI docs:
+			// The cluster controller will set an OwnerReference on the infrastructureCluster.
+			// This controller should normally take no action during reconciliation until it sees the OwnerReference.
+			return ctrl.Result{}, nil
+		}
 	}
 
 	// ensure finalizer
@@ -399,7 +404,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 
 func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
 	host := ""
-	err := wait.PollImmediate(time.Second*2, time.Minute*5, func() (done bool, err error) {
+	err := wait.PollImmediate(time.Second*2, time.Second*10, func() (done bool, err error) {
 		service := &corev1.Service{}
 		err = client.Get(context.TODO(), types.NamespacedName{Namespace: vCluster.Namespace, Name: vCluster.Name}, service)
 		if err != nil {
@@ -562,6 +567,12 @@ func EnsureFinalizer(ctx context.Context, client client.Client, obj client.Objec
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *VClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	var err error
+	r.clusterKindExists, err = util.KindExists(mgr.GetConfig(), clusterv1beta1.GroupVersion.WithKind("Cluster"))
+	if err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.VCluster{}).
 		Complete(r)
