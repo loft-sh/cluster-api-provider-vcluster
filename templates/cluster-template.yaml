@@ -13,7 +13,7 @@ kind: VCluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
-  kubernetesVersion: ${KUBERNETES_VERSION:=null}
+  kubernetesVersion: "${KUBERNETES_VERSION:=}"
   helmRelease:
     values: "${HELM_VALUES:=""}"
     chart: 

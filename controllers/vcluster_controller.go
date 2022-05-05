@@ -254,7 +254,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		Major: "1",
 		Minor: "23",
 	}
-	if vCluster.Spec.KubernetesVersion != nil {
+	if vCluster.Spec.KubernetesVersion != nil && *vCluster.Spec.KubernetesVersion != "" {
 		v := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
 		if len(v) == 2 {
 			kVersion.Major = v[0]
