@@ -29,7 +29,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: loftsh/cluster-api-provider-vcluster
+        image: docker.io/loftsh/cluster-api-provider-vcluster
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:
@@ -53,7 +53,6 @@ spec:
         # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
-            cpu: 500m
             memory: 1Gi
           requests:
             cpu: 10m

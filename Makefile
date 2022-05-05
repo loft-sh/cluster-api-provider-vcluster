@@ -1,7 +1,7 @@
 
 TAG ?= main
 # Image URL to use all building/pushing image targets
-IMG ?= loftsh/cluster-api-provider-vcluster:$(TAG)
+IMG ?= docker.io/loftsh/cluster-api-provider-vcluster:$(TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -140,6 +140,6 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 	cp templates/cluster-template* $(RELEASE_DIR)/
 	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 # revert the values back to development ones 
-	sed -i'' -e 's@image: .*@image: loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's@image: .*@image: docker.io/loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
 	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
 	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml
