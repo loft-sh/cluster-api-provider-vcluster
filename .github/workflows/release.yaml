@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v2
       - id: get_version
         run: |
-          RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/!!p')
+          RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/v!!p')
           echo "::set-output name=release_version::$RELEASE_VERSION"
       - name: Prepare all release files for the provider
         run: |

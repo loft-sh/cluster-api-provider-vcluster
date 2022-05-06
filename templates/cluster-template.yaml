@@ -15,7 +15,7 @@ metadata:
 spec:
   kubernetesVersion: "${KUBERNETES_VERSION:=}"
   helmRelease:
-    values: "${HELM_VALUES:=""}"
+    values: "${HELM_VALUES:=}"
     chart: 
       name: ${CHART_NAME:=null}
       repo: ${CHART_REPO:=null}

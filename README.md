@@ -37,7 +37,7 @@ In the example commands below, the HELM_VALUES variable will be populated with t
 ```shell
 export CLUSTER_NAME=vcluster
 export CLUSTER_NAMESPACE=vcluster
-export KUBERNETES_VERSION=1.24
+export KUBERNETES_VERSION=1.24.0
 export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \
@@ -95,7 +95,7 @@ In the example commands below, the HELM_VALUES variable will be populated with t
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export KUBERNETES_VERSION=1.24
+export KUBERNETES_VERSION=1.24.0
 export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -

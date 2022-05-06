@@ -264,6 +264,10 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		if len(v) == 2 {
 			kVersion.Major = v[0]
 			kVersion.Minor = v[1]
+		} else if len(v) == 3 {
+			kVersion.Major = v[0]
+			kVersion.Minor = v[1]
+			r.Log.Infof("vclusters %s/%s patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used", vCluster.Namespace, vCluster.Name)
 		} else {
 			return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
 		}
