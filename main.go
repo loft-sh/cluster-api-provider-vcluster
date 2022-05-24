@@ -32,10 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	infrastructurev1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/controllers"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -47,7 +47,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(infrastructurev1alpha4.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 

@@ -13,7 +13,7 @@ limitations under the License.
 
 package patch
 
-import v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+import v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
 
 // Option is some configuration that modifies options for a patch request.
 type Option interface {
@@ -33,7 +33,7 @@ type HelperOptions struct {
 
 	// OwnedConditions defines condition types owned by the controller.
 	// In case of conflicts for the owned conditions, the patch helper will always use the value provided by the controller.
-	OwnedConditions []v1alpha1.ConditionType
+	OwnedConditions []v1alpha4.ConditionType
 }
 
 // WithForceOverwriteConditions allows the patch helper to overwrite conditions in case of conflicts.
@@ -57,7 +57,7 @@ func (w WithStatusObservedGeneration) ApplyToHelper(in *HelperOptions) {
 // WithOwnedConditions allows to define condition types owned by the controller.
 // In case of conflicts for the owned conditions, the patch helper will always use the value provided by the controller.
 type WithOwnedConditions struct {
-	Conditions []v1alpha1.ConditionType
+	Conditions []v1alpha4.ConditionType
 }
 
 // ApplyToHelper applies this configuration to the given HelperOptions.

@@ -7,11 +7,11 @@ import (
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/version"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
 )
 
 type Values interface {
-	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error)
+	Merge(release *v1alpha4.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error)
 }
 
 func NewValuesMerger(kubernetesVersion *version.Info, serviceCIDR string) Values {
@@ -26,7 +26,7 @@ type values struct {
 	serviceCIDR       string
 }
 
-func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error) {
+func (v *values) Merge(release *v1alpha4.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error) {
 	valuesObj := map[string]interface{}{}
 	values := release.Values
 	if values != "" {
@@ -51,7 +51,7 @@ func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghe
 	return string(out), nil
 }
 
-func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (map[string]interface{}, error) {
+func (v *values) getVClusterDefaultValues(release *v1alpha4.VirtualClusterHelmRelease, logger loghelper.Logger) (map[string]interface{}, error) {
 	valuesStr, err := vclustervalues.GetDefaultReleaseValues(
 		&vclusterhelm.ChartOptions{
 			ChartName:         release.Chart.Name,

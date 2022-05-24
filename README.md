@@ -15,14 +15,14 @@ As a first step, we need to add the cluster-api-provider-vcluster configuration 
 ```yaml
 providers:
   - name: vcluster
-    url: https://github.com/loft-sh/cluster-api-provider-vcluster/releases/latest/infrastructure-components.yaml
+    url: https://github.com/spectrocloud/cluster-api-provider-vcluster/releases/latest/infrastructure-components.yaml
     type: InfrastructureProvider                                                           
 ```
 
 You should be able to see the vcluster provider when running `clusterctl config repositories`:
 ```shell
 clusterctl config repositories | grep vcluster
-vcluster   InfrastructureProvider   https://github.com/loft-sh/cluster-api-provider-vcluster/releases/latest/                    infrastructure-components.yaml
+vcluster   InfrastructureProvider   https://github.com/spectrocloud/cluster-api-provider-vcluster/releases/latest/                    infrastructure-components.yaml
 ```
 
 Install the vcluster provider

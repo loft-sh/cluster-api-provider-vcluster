@@ -15,7 +15,7 @@ spec:
     singular: vcluster
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - name: v1alpha4
     schema:
       openAPIV3Schema:
         description: VCluster is the Schema for the vclusters API

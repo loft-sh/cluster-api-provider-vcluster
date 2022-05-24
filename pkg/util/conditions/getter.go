@@ -14,7 +14,7 @@ limitations under the License.
 package conditions
 
 import (
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,12 +26,12 @@ type Getter interface {
 	client.Object
 
 	// GetConditions returns the list of conditions for a cluster API object.
-	GetConditions() v1alpha1.Conditions
+	GetConditions() v1alpha4.Conditions
 }
 
 // Get returns the condition with the given type, if the condition does not exists,
 // it returns nil.
-func Get(from Getter, t v1alpha1.ConditionType) *v1alpha1.Condition {
+func Get(from Getter, t v1alpha4.ConditionType) *v1alpha4.Condition {
 	conditions := from.GetConditions()
 	if conditions == nil {
 		return nil
@@ -46,13 +46,13 @@ func Get(from Getter, t v1alpha1.ConditionType) *v1alpha1.Condition {
 }
 
 // Has returns true if a condition with the given type exists.
-func Has(from Getter, t v1alpha1.ConditionType) bool {
+func Has(from Getter, t v1alpha4.ConditionType) bool {
 	return Get(from, t) != nil
 }
 
 // IsTrue is true if the condition with the given type is True, otherwise it return false
 // if the condition is not True or if the condition does not exist (is nil).
-func IsTrue(from Getter, t v1alpha1.ConditionType) bool {
+func IsTrue(from Getter, t v1alpha4.ConditionType) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == corev1.ConditionTrue
 	}
@@ -61,7 +61,7 @@ func IsTrue(from Getter, t v1alpha1.ConditionType) bool {
 
 // IsFalse is true if the condition with the given type is False, otherwise it return false
 // if the condition is not False or if the condition does not exist (is nil).
-func IsFalse(from Getter, t v1alpha1.ConditionType) bool {
+func IsFalse(from Getter, t v1alpha4.ConditionType) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == corev1.ConditionFalse
 	}
@@ -70,7 +70,7 @@ func IsFalse(from Getter, t v1alpha1.ConditionType) bool {
 
 // IsUnknown is true if the condition with the given type is Unknown or if the condition
 // does not exist (is nil).
-func IsUnknown(from Getter, t v1alpha1.ConditionType) bool {
+func IsUnknown(from Getter, t v1alpha4.ConditionType) bool {
 	if c := Get(from, t); c != nil {
 		return c.Status == corev1.ConditionUnknown
 	}
@@ -78,7 +78,7 @@ func IsUnknown(from Getter, t v1alpha1.ConditionType) bool {
 }
 
 // GetReason returns a nil safe string of Reason for the condition with the given type.
-func GetReason(from Getter, t v1alpha1.ConditionType) string {
+func GetReason(from Getter, t v1alpha4.ConditionType) string {
 	if c := Get(from, t); c != nil {
 		return c.Reason
 	}
@@ -86,7 +86,7 @@ func GetReason(from Getter, t v1alpha1.ConditionType) string {
 }
 
 // GetMessage returns a nil safe string of Message.
-func GetMessage(from Getter, t v1alpha1.ConditionType) string {
+func GetMessage(from Getter, t v1alpha4.ConditionType) string {
 	if c := Get(from, t); c != nil {
 		return c.Message
 	}
@@ -95,7 +95,7 @@ func GetMessage(from Getter, t v1alpha1.ConditionType) string {
 
 // GetSeverity returns the condition Severity or nil if the condition
 // does not exist (is nil).
-func GetSeverity(from Getter, t v1alpha1.ConditionType) *v1alpha1.ConditionSeverity {
+func GetSeverity(from Getter, t v1alpha4.ConditionType) *v1alpha4.ConditionSeverity {
 	if c := Get(from, t); c != nil {
 		return &c.Severity
 	}
@@ -104,7 +104,7 @@ func GetSeverity(from Getter, t v1alpha1.ConditionType) *v1alpha1.ConditionSever
 
 // GetLastTransitionTime returns the condition Severity or nil if the condition
 // does not exist (is nil).
-func GetLastTransitionTime(from Getter, t v1alpha1.ConditionType) *metav1.Time {
+func GetLastTransitionTime(from Getter, t v1alpha4.ConditionType) *metav1.Time {
 	if c := Get(from, t); c != nil {
 		return &c.LastTransitionTime
 	}
@@ -113,7 +113,7 @@ func GetLastTransitionTime(from Getter, t v1alpha1.ConditionType) *metav1.Time {
 
 // summary returns a Ready condition with the summary of all the conditions existing
 // on an object. If the object does not have other conditions, no summary condition is generated.
-func summary(from Getter, options ...MergeOption) *v1alpha1.Condition {
+func summary(from Getter, options ...MergeOption) *v1alpha4.Condition {
 	conditions := from.GetConditions()
 
 	mergeOpt := &mergeOptions{}
@@ -126,7 +126,7 @@ func summary(from Getter, options ...MergeOption) *v1alpha1.Condition {
 	conditionsInScope := make([]localizedCondition, 0, len(conditions))
 	for i := range conditions {
 		c := conditions[i]
-		if c.Type == v1alpha1.ReadyCondition {
+		if c.Type == v1alpha4.ReadyCondition {
 			continue
 		}
 
@@ -179,14 +179,14 @@ func summary(from Getter, options ...MergeOption) *v1alpha1.Condition {
 		}
 	}
 
-	return merge(conditionsInScope, v1alpha1.ReadyCondition, mergeOpt)
+	return merge(conditionsInScope, v1alpha4.ReadyCondition, mergeOpt)
 }
 
 // mirrorOptions allows to set options for the mirror operation.
 type mirrorOptions struct {
 	fallbackTo       *bool
 	fallbackReason   string
-	fallbackSeverity v1alpha1.ConditionSeverity
+	fallbackSeverity v1alpha4.ConditionSeverity
 	fallbackMessage  string
 }
 
@@ -195,7 +195,7 @@ type MirrorOptions func(*mirrorOptions)
 
 // WithFallbackValue specify a fallback value to use in case the mirrored condition does not exists;
 // in case the fallbackValue is false, given values for reason, severity and message will be used.
-func WithFallbackValue(fallbackValue bool, reason string, severity v1alpha1.ConditionSeverity, message string) MirrorOptions {
+func WithFallbackValue(fallbackValue bool, reason string, severity v1alpha4.ConditionSeverity, message string) MirrorOptions {
 	return func(c *mirrorOptions) {
 		c.fallbackTo = &fallbackValue
 		c.fallbackReason = reason
@@ -206,13 +206,13 @@ func WithFallbackValue(fallbackValue bool, reason string, severity v1alpha1.Cond
 
 // mirror mirrors the Ready condition from a dependent object into the target condition;
 // if the Ready condition does not exists in the source object, no target conditions is generated.
-func mirror(from Getter, targetCondition v1alpha1.ConditionType, options ...MirrorOptions) *v1alpha1.Condition {
+func mirror(from Getter, targetCondition v1alpha4.ConditionType, options ...MirrorOptions) *v1alpha4.Condition {
 	mirrorOpt := &mirrorOptions{}
 	for _, o := range options {
 		o(mirrorOpt)
 	}
 
-	condition := Get(from, v1alpha1.ReadyCondition)
+	condition := Get(from, v1alpha4.ReadyCondition)
 
 	if mirrorOpt.fallbackTo != nil && condition == nil {
 		switch *mirrorOpt.fallbackTo {
@@ -233,10 +233,10 @@ func mirror(from Getter, targetCondition v1alpha1.ConditionType, options ...Mirr
 // Aggregates all the the Ready condition from a list of dependent objects into the target object;
 // if the Ready condition does not exists in one of the source object, the object is excluded from
 // the aggregation; if none of the source object have ready condition, no target conditions is generated.
-func aggregate(from []Getter, targetCondition v1alpha1.ConditionType, options ...MergeOption) *v1alpha1.Condition {
+func aggregate(from []Getter, targetCondition v1alpha4.ConditionType, options ...MergeOption) *v1alpha4.Condition {
 	conditionsInScope := make([]localizedCondition, 0, len(from))
 	for i := range from {
-		condition := Get(from[i], v1alpha1.ReadyCondition)
+		condition := Get(from[i], v1alpha4.ReadyCondition)
 
 		conditionsInScope = append(conditionsInScope, localizedCondition{
 			Condition: condition,

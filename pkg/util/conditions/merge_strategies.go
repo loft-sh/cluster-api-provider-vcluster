@@ -17,16 +17,16 @@ import (
 	"fmt"
 	"strings"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
 )
 
 // mergeOptions allows to set strategies for merging a set of conditions into a single condition,
 // and more specifically for computing the target Reason and the target Message.
 type mergeOptions struct {
-	conditionTypes                     []v1alpha1.ConditionType
+	conditionTypes                     []v1alpha4.ConditionType
 	addSourceRef                       bool
 	addStepCounter                     bool
-	addStepCounterIfOnlyConditionTypes []v1alpha1.ConditionType
+	addStepCounterIfOnlyConditionTypes []v1alpha4.ConditionType
 	stepCounter                        int
 }
 
@@ -41,7 +41,7 @@ type MergeOption func(*mergeOptions)
 // NOTE: The order of conditions types defines the priority for determining the Reason and Message for the
 // target condition.
 // IMPORTANT: This options works only while generating the Summary condition.
-func WithConditions(t ...v1alpha1.ConditionType) MergeOption {
+func WithConditions(t ...v1alpha4.ConditionType) MergeOption {
 	return func(c *mergeOptions) {
 		c.conditionTypes = t
 	}
@@ -72,7 +72,7 @@ func WithStepCounterIf(value bool) MergeOption {
 //
 // IMPORTANT: This options requires WithStepCounter or WithStepCounterIf to be set.
 // IMPORTANT: This options works only while generating the Summary condition.
-func WithStepCounterIfOnly(t ...v1alpha1.ConditionType) MergeOption {
+func WithStepCounterIfOnly(t ...v1alpha4.ConditionType) MergeOption {
 	return func(c *mergeOptions) {
 		c.addStepCounterIfOnlyConditionTypes = t
 	}
@@ -93,7 +93,7 @@ func getReason(groups conditionGroups, options *mergeOptions) string {
 
 // getFirstReason returns the first reason from the ordered list of conditions in the top group.
 // If required, the reason gets localized with the source object reference.
-func getFirstReason(g conditionGroups, order []v1alpha1.ConditionType, addSourceRef bool) string {
+func getFirstReason(g conditionGroups, order []v1alpha4.ConditionType, addSourceRef bool) string {
 	if condition := getFirstCondition(g, order); condition != nil {
 		reason := condition.Reason
 		if addSourceRef {
@@ -134,7 +134,7 @@ func getStepCounterMessage(groups conditionGroups, to int) string {
 }
 
 // getFirstMessage returns the message from the ordered list of conditions in the top group.
-func getFirstMessage(groups conditionGroups, order []v1alpha1.ConditionType) string {
+func getFirstMessage(groups conditionGroups, order []v1alpha4.ConditionType) string {
 	if condition := getFirstCondition(groups, order); condition != nil {
 		return condition.Message
 	}
@@ -142,7 +142,7 @@ func getFirstMessage(groups conditionGroups, order []v1alpha1.ConditionType) str
 }
 
 // getFirstCondition returns a first condition from the ordered list of conditions in the top group.
-func getFirstCondition(g conditionGroups, priority []v1alpha1.ConditionType) *localizedCondition {
+func getFirstCondition(g conditionGroups, priority []v1alpha4.ConditionType) *localizedCondition {
 	topGroup := g.TopGroup()
 	if topGroup == nil {
 		return nil

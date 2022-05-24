@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/pkg/errors"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
 )
 
 // RepositoryEntries describes the entries of an helm chart repository

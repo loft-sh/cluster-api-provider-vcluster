@@ -42,14 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/constants"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/vclustervalues"
+	v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/constants"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/helm"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/conditions"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/patch"
+	"github.com/spectrocloud/cluster-api-provider-vcluster/pkg/util/vclustervalues"
 )
 
 // VClusterReconciler reconciles a VCluster object
@@ -81,7 +81,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	r.Log.Debugf("Reconcile %s", req.NamespacedName)
 
 	// get virtual cluster object
-	vCluster := &v1alpha1.VCluster{}
+	vCluster := &v1alpha4.VCluster{}
 	err := r.Client.Get(ctx, req.NamespacedName, vCluster)
 	if err != nil {
 		if !kerrors.IsNotFound(err) {
@@ -165,7 +165,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
 		r.Log.Infof("error during virtual cluster deploy %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
-		conditions.MarkFalse(vCluster, v1alpha1.HelmChartDeployedCondition, "HelmDeployFailed", v1alpha1.ConditionSeverityError, "%v", err)
+		conditions.MarkFalse(vCluster, v1alpha4.HelmChartDeployedCondition, "HelmDeployFailed", v1alpha4.ConditionSeverityError, "%v", err)
 		return ctrl.Result{}, err
 	}
 
@@ -175,30 +175,30 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	r.Log.Debugf("%s/%s: ready check took: %v", vCluster.Namespace, vCluster.Name, time.Since(t))
 	if err != nil {
 		r.Log.Debugf("vcluster %s/%s is not ready: %v", vCluster.Namespace, vCluster.Name, err)
-		conditions.MarkFalse(vCluster, v1alpha1.KubeconfigReadyCondition, "CheckFailed", v1alpha1.ConditionSeverityWarning, "%v", err)
+		conditions.MarkFalse(vCluster, v1alpha4.KubeconfigReadyCondition, "CheckFailed", v1alpha4.ConditionSeverityWarning, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *VClusterReconciler) reconcilePhase(_ context.Context, vCluster *v1alpha1.VCluster) {
-	vCluster.Status.Ready = conditions.IsTrue(vCluster, v1alpha1.KubeconfigReadyCondition)
+func (r *VClusterReconciler) reconcilePhase(_ context.Context, vCluster *v1alpha4.VCluster) {
+	vCluster.Status.Ready = conditions.IsTrue(vCluster, v1alpha4.KubeconfigReadyCondition)
 
-	if vCluster.Status.Phase != v1alpha1.VirtualClusterPending {
-		vCluster.Status.Phase = v1alpha1.VirtualClusterPending
+	if vCluster.Status.Phase != v1alpha4.VirtualClusterPending {
+		vCluster.Status.Phase = v1alpha4.VirtualClusterPending
 	}
 
-	if vCluster.Status.Ready && conditions.IsTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition) {
-		vCluster.Status.Phase = v1alpha1.VirtualClusterDeployed
+	if vCluster.Status.Ready && conditions.IsTrue(vCluster, v1alpha4.ControlPlaneInitializedCondition) {
+		vCluster.Status.Phase = v1alpha4.VirtualClusterDeployed
 	}
 
 	// set failed if a condition is errored
 	vCluster.Status.Reason = ""
 	vCluster.Status.Message = ""
 	for _, c := range vCluster.Status.Conditions {
-		if c.Status == corev1.ConditionFalse && c.Severity == v1alpha1.ConditionSeverityError {
-			vCluster.Status.Phase = v1alpha1.VirtualClusterFailed
+		if c.Status == corev1.ConditionFalse && c.Severity == v1alpha4.ConditionSeverityError {
+			vCluster.Status.Phase = v1alpha4.VirtualClusterFailed
 			vCluster.Status.Reason = c.Reason
 			vCluster.Status.Message = c.Message
 			break
@@ -206,9 +206,9 @@ func (r *VClusterReconciler) reconcilePhase(_ context.Context, vCluster *v1alpha
 	}
 }
 
-func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1alpha4.VCluster) error {
 	// upgrade chart
-	if vCluster.Generation == vCluster.Status.ObservedGeneration && conditions.IsTrue(vCluster, v1alpha1.HelmChartDeployedCondition) {
+	if vCluster.Generation == vCluster.Status.ObservedGeneration && conditions.IsTrue(vCluster, v1alpha4.HelmChartDeployedCondition) {
 		return nil
 	}
 
@@ -277,8 +277,8 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	values, err = vclustervalues.NewValuesMerger(
 		kVersion,
 		cidr,
-	).Merge(&v1alpha1.VirtualClusterHelmRelease{
-		Chart: v1alpha1.VirtualClusterHelmChart{
+	).Merge(&v1alpha4.VirtualClusterHelmRelease{
+		Chart: v1alpha4.VirtualClusterHelmChart{
 			Name:    chartName,
 			Repo:    chartRepo,
 			Version: chartVersion,
@@ -316,13 +316,13 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		return fmt.Errorf("error installing / upgrading vcluster: %v", err)
 	}
 
-	conditions.MarkTrue(vCluster, v1alpha1.HelmChartDeployedCondition)
-	conditions.Delete(vCluster, v1alpha1.KubeconfigReadyCondition)
+	conditions.MarkTrue(vCluster, v1alpha4.HelmChartDeployedCondition)
+	conditions.Delete(vCluster, v1alpha4.KubeconfigReadyCondition)
 
 	return nil
 }
 
-func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster *v1alpha4.VCluster) error {
 	credentials, err := GetVClusterCredentials(ctx, r.Client, vCluster)
 	if err != nil {
 		return err
@@ -342,13 +342,13 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	defer cancel()
 
 	// if we haven't checked if the vcluster is initialized, do it now
-	if !conditions.IsTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition) {
+	if !conditions.IsTrue(vCluster, v1alpha4.ControlPlaneInitializedCondition) {
 		_, err = kubeClient.CoreV1().ServiceAccounts("default").Get(ctxTimeout, "default", metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
-		conditions.MarkTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition)
+		conditions.MarkTrue(vCluster, v1alpha4.ControlPlaneInitializedCondition)
 	}
 
 	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
@@ -402,11 +402,11 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		return fmt.Errorf("can not create a kubeconfig secret: %v", err)
 	}
 
-	conditions.MarkTrue(vCluster, v1alpha1.KubeconfigReadyCondition)
+	conditions.MarkTrue(vCluster, v1alpha4.KubeconfigReadyCondition)
 	return nil
 }
 
-func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
+func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha4.VCluster) (string, error) {
 	host := ""
 	err := wait.PollImmediate(time.Second*2, time.Second*10, func() (done bool, err error) {
 		service := &corev1.Service{}
@@ -447,7 +447,7 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 	return host, nil
 }
 
-func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCluster *v1alpha1.VCluster) (*api.Config, error) {
+func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCluster *v1alpha4.VCluster) (*api.Config, error) {
 	secretName := kubeconfig.DefaultSecretPrefix + vCluster.Name
 
 	secret := &corev1.Secret{}
@@ -469,7 +469,7 @@ func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCl
 	return kubeConfig, nil
 }
 
-func GetVClusterCredentials(ctx context.Context, clusterClient client.Client, vCluster *v1alpha1.VCluster) (*Credentials, error) {
+func GetVClusterCredentials(ctx context.Context, clusterClient client.Client, vCluster *v1alpha4.VCluster) (*Credentials, error) {
 	kubeConfig, err := GetVClusterKubeConfig(ctx, clusterClient, vCluster)
 	if err != nil {
 		return nil, err
@@ -505,12 +505,12 @@ func (r *VClusterReconciler) deleteHelmChart(ctx context.Context, namespace, nam
 	return r.HelmClient.Delete(name, namespace)
 }
 
-func patchCluster(ctx context.Context, patchHelper *patch.Helper, vCluster *v1alpha1.VCluster, options ...patch.Option) error {
+func patchCluster(ctx context.Context, patchHelper *patch.Helper, vCluster *v1alpha4.VCluster, options ...patch.Option) error {
 	// Always update the readyCondition by summarizing the state of other conditions.
 	conditions.SetSummary(vCluster,
 		conditions.WithConditions(
-			v1alpha1.KubeconfigReadyCondition,
-			v1alpha1.ControlPlaneInitializedCondition,
+			v1alpha4.KubeconfigReadyCondition,
+			v1alpha4.ControlPlaneInitializedCondition,
 		),
 	)
 
@@ -518,11 +518,11 @@ func patchCluster(ctx context.Context, patchHelper *patch.Helper, vCluster *v1al
 	// Also, if requested, we are adding additional options like e.g. Patch ObservedGeneration when issuing the
 	// patch at the end of the reconcile loop.
 	options = append(options,
-		patch.WithOwnedConditions{Conditions: []v1alpha1.ConditionType{
-			v1alpha1.ReadyCondition,
-			v1alpha1.KubeconfigReadyCondition,
-			v1alpha1.ControlPlaneInitializedCondition,
-			v1alpha1.HelmChartDeployedCondition,
+		patch.WithOwnedConditions{Conditions: []v1alpha4.ConditionType{
+			v1alpha4.ReadyCondition,
+			v1alpha4.KubeconfigReadyCondition,
+			v1alpha4.ControlPlaneInitializedCondition,
+			v1alpha4.HelmChartDeployedCondition,
 		}},
 	)
 	return patchHelper.Patch(ctx, vCluster, options...)
@@ -578,6 +578,6 @@ func (r *VClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.VCluster{}).
+		For(&v1alpha4.VCluster{}).
 		Complete(r)
 }

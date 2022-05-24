@@ -18,7 +18,7 @@ import (
 	"sort"
 	"time"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha4 "github.com/spectrocloud/cluster-api-provider-vcluster/api/v1alpha4"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,14 +28,14 @@ import (
 // use the conditions package for setting conditions.
 type Setter interface {
 	Getter
-	SetConditions(v1alpha1.Conditions)
+	SetConditions(v1alpha4.Conditions)
 }
 
 // Set sets the given condition.
 //
 // NOTE: If a condition already exists, the LastTransitionTime is updated only if a change is detected
 // in any of the following fields: Status, Reason, Severity and Message.
-func Set(to Setter, condition *v1alpha1.Condition) {
+func Set(to Setter, condition *v1alpha4.Condition) {
 	if to == nil || condition == nil {
 		return
 	}
@@ -75,16 +75,16 @@ func Set(to Setter, condition *v1alpha1.Condition) {
 }
 
 // TrueCondition returns a condition with Status=True and the given type.
-func TrueCondition(t v1alpha1.ConditionType) *v1alpha1.Condition {
-	return &v1alpha1.Condition{
+func TrueCondition(t v1alpha4.ConditionType) *v1alpha4.Condition {
+	return &v1alpha4.Condition{
 		Type:   t,
 		Status: corev1.ConditionTrue,
 	}
 }
 
 // FalseCondition returns a condition with Status=False and the given type.
-func FalseCondition(t v1alpha1.ConditionType, reason string, severity v1alpha1.ConditionSeverity, messageFormat string, messageArgs ...interface{}) *v1alpha1.Condition {
-	return &v1alpha1.Condition{
+func FalseCondition(t v1alpha4.ConditionType, reason string, severity v1alpha4.ConditionSeverity, messageFormat string, messageArgs ...interface{}) *v1alpha4.Condition {
+	return &v1alpha4.Condition{
 		Type:     t,
 		Status:   corev1.ConditionFalse,
 		Reason:   reason,
@@ -94,8 +94,8 @@ func FalseCondition(t v1alpha1.ConditionType, reason string, severity v1alpha1.C
 }
 
 // UnknownCondition returns a condition with Status=Unknown and the given type.
-func UnknownCondition(t v1alpha1.ConditionType, reason string, messageFormat string, messageArgs ...interface{}) *v1alpha1.Condition {
-	return &v1alpha1.Condition{
+func UnknownCondition(t v1alpha4.ConditionType, reason string, messageFormat string, messageArgs ...interface{}) *v1alpha4.Condition {
+	return &v1alpha4.Condition{
 		Type:    t,
 		Status:  corev1.ConditionUnknown,
 		Reason:  reason,
@@ -104,17 +104,17 @@ func UnknownCondition(t v1alpha1.ConditionType, reason string, messageFormat str
 }
 
 // MarkTrue sets Status=True for the condition with the given type.
-func MarkTrue(to Setter, t v1alpha1.ConditionType) {
+func MarkTrue(to Setter, t v1alpha4.ConditionType) {
 	Set(to, TrueCondition(t))
 }
 
 // MarkUnknown sets Status=Unknown for the condition with the given type.
-func MarkUnknown(to Setter, t v1alpha1.ConditionType, reason, messageFormat string, messageArgs ...interface{}) {
+func MarkUnknown(to Setter, t v1alpha4.ConditionType, reason, messageFormat string, messageArgs ...interface{}) {
 	Set(to, UnknownCondition(t, reason, messageFormat, messageArgs...))
 }
 
 // MarkFalse sets Status=False for the condition with the given type.
-func MarkFalse(to Setter, t v1alpha1.ConditionType, reason string, severity v1alpha1.ConditionSeverity, messageFormat string, messageArgs ...interface{}) {
+func MarkFalse(to Setter, t v1alpha4.ConditionType, reason string, severity v1alpha4.ConditionSeverity, messageFormat string, messageArgs ...interface{}) {
 	Set(to, FalseCondition(t, reason, severity, messageFormat, messageArgs...))
 }
 
@@ -126,7 +126,7 @@ func SetSummary(to Setter, options ...MergeOption) {
 
 // SetMirror creates a new condition by mirroring the the Ready condition from a dependent object;
 // if the Ready condition does not exists in the source object, no target conditions is generated.
-func SetMirror(to Setter, targetCondition v1alpha1.ConditionType, from Getter, options ...MirrorOptions) {
+func SetMirror(to Setter, targetCondition v1alpha4.ConditionType, from Getter, options ...MirrorOptions) {
 	Set(to, mirror(from, targetCondition, options...))
 }
 
@@ -134,18 +134,18 @@ func SetMirror(to Setter, targetCondition v1alpha1.ConditionType, from Getter, o
 // from a list of dependent objects; if the Ready condition does not exists in one of the source object,
 // the object is excluded from the aggregation; if none of the source object have ready condition,
 // no target conditions is generated.
-func SetAggregate(to Setter, targetCondition v1alpha1.ConditionType, from []Getter, options ...MergeOption) {
+func SetAggregate(to Setter, targetCondition v1alpha4.ConditionType, from []Getter, options ...MergeOption) {
 	Set(to, aggregate(from, targetCondition, options...))
 }
 
 // Delete deletes the condition with the given type.
-func Delete(to Setter, t v1alpha1.ConditionType) {
+func Delete(to Setter, t v1alpha4.ConditionType) {
 	if to == nil {
 		return
 	}
 
 	conditions := to.GetConditions()
-	newConditions := make(v1alpha1.Conditions, 0, len(conditions))
+	newConditions := make(v1alpha4.Conditions, 0, len(conditions))
 	for _, condition := range conditions {
 		if condition.Type != t {
 			newConditions = append(newConditions, condition)
@@ -158,13 +158,13 @@ func Delete(to Setter, t v1alpha1.ConditionType) {
 // to order of conditions designed for convenience of the consumer, i.e. kubectl.
 // According to this order the Ready condition always goes first, followed by all the other
 // conditions sorted by Type.
-func lexicographicLess(i, j *v1alpha1.Condition) bool {
-	return (i.Type == v1alpha1.ReadyCondition || i.Type < j.Type) && j.Type != v1alpha1.ReadyCondition
+func lexicographicLess(i, j *v1alpha4.Condition) bool {
+	return (i.Type == v1alpha4.ReadyCondition || i.Type < j.Type) && j.Type != v1alpha4.ReadyCondition
 }
 
 // hasSameState returns true if a condition has the same state of another; state is defined
 // by the union of following fields: Type, Status, Reason, Severity and Message (it excludes LastTransitionTime).
-func hasSameState(i, j *v1alpha1.Condition) bool {
+func hasSameState(i, j *v1alpha4.Condition) bool {
 	return i.Type == j.Type &&
 		i.Status == j.Status &&
 		i.Reason == j.Reason &&
