@@ -47,7 +47,7 @@ clusterctl generate cluster ${CLUSTER_NAME} \
     --target-namespace ${CLUSTER_NAMESPACE} | kubectl apply -f -
 ```
 
-Now we just need to wait until VCluster custom resource reports ready status:
+Now we just need to wait until vcluster custom resource reports ready status:
 ```shell
 kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
 ```
