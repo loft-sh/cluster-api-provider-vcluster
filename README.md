@@ -2,6 +2,9 @@
 
 This is a [Cluster API](https://cluster-api.sigs.k8s.io/introduction.html) provider for the [vcluster project](https://www.vcluster.com/) - create fully functional virtual Kubernetes clusters.
 
+# Quick Start - Deploying Nginx in a Kind cluster
+ Can be found [here](./docs/quick-start.md)
+
 # Installation instructions
 
 Prerequisites:
