@@ -5,11 +5,11 @@
   "version": "0.2.0",
   "configurations": [
       {
-        "name": "Debug (localhost:2346)",
+        "name": "Debug (localhost:2348)",
         "type": "go",
         "request": "attach",
         "mode": "remote",
-        "port": 2346,
+        "port": 2348,
         "host": "localhost",
         "substitutePath": [
           {
