@@ -368,7 +368,11 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		if err != nil {
 			return err
 		}
-		//TODO write back vcluster.spec.controlPlaneEndpoint.Host
+		// write the discovered host back into vCluster CR
+		vCluster.Spec.ControlPlaneEndpoint.Host = controlPlaneHost
+		if vCluster.Spec.ControlPlaneEndpoint.Port == 0 {
+			vCluster.Spec.ControlPlaneEndpoint.Port = DefaultControlPlanePort
+		}
 	}
 
 	for k := range kubeConfig.Clusters {
@@ -412,9 +416,9 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 		service := &corev1.Service{}
 		err = client.Get(context.TODO(), types.NamespacedName{Namespace: vCluster.Namespace, Name: vCluster.Name}, service)
 		if err != nil {
-			// if kerrors.IsNotFound(err) {
-			// 	return true, nil
-			// }
+			if kerrors.IsNotFound(err) {
+				return true, nil
+			}
 
 			return false, err
 		}
@@ -444,6 +448,9 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 		return "", fmt.Errorf("can not get vcluster service: %v", err)
 	}
 
+	if host == "" {
+		host = fmt.Sprintf("%s.%s.svc", vCluster.Name, vCluster.Namespace)
+	}
 	return host, nil
 }
 
