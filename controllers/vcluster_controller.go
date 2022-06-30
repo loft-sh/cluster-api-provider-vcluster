@@ -45,7 +45,6 @@ import (
 	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/constants"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/cidrdiscovery"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
@@ -214,12 +213,6 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 
 	r.Log.Debugf("upgrade virtual cluster helm chart %s/%s", vCluster.Namespace, vCluster.Name)
 
-	// look up CIDR
-	cidr, err := cidrdiscovery.NewCIDRLookup(r.Client).GetServiceCIDR(ctx, vCluster.Namespace)
-	if err != nil {
-		return fmt.Errorf("get service cidr: %v", err)
-	}
-
 	var chartRepo string
 	if vCluster.Spec.HelmRelease != nil {
 		chartRepo = vCluster.Spec.HelmRelease.Chart.Repo
@@ -274,9 +267,8 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	}
 
 	//TODO: if .spec.controlPlaneEndpoint.Host is set it would be nice to pass it as --tls-san flag of syncer
-	values, err = vclustervalues.NewValuesMerger(
+	values, err := vclustervalues.NewValuesMerger(
 		kVersion,
-		cidr,
 	).Merge(&v1alpha1.VirtualClusterHelmRelease{
 		Chart: v1alpha1.VirtualClusterHelmChart{
 			Name:    chartName,
