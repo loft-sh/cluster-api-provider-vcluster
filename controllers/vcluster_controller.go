@@ -19,6 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -35,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
@@ -147,7 +150,7 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 
 	defer func() {
 		// Always reconcile the Status.Phase field.
-		r.reconcilePhase(ctx, vCluster)
+		r.reconcilePhase(vCluster)
 
 		// Always attempt to Patch the Cluster object and status after each reconciliation.
 		// Patch ObservedGeneration only if the reconciliation completed successfully
@@ -165,25 +168,27 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	if err != nil {
 		r.Log.Infof("error during virtual cluster deploy %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
 		conditions.MarkFalse(vCluster, v1alpha1.HelmChartDeployedCondition, "HelmDeployFailed", v1alpha1.ConditionSeverityError, "%v", err)
-		return ctrl.Result{}, err
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
 	}
 
-	// check if vcluster is reachable and sync the kubeconfig Secret
-	t := time.Now()
-	err = r.syncVClusterKubeconfig(ctx, vCluster)
-	r.Log.Debugf("%s/%s: ready check took: %v", vCluster.Namespace, vCluster.Name, time.Since(t))
+	// check if vcluster is initialized and sync the kubeconfig Secret
+	restConfig, err := r.syncVClusterKubeconfig(ctx, vCluster)
 	if err != nil {
 		r.Log.Debugf("vcluster %s/%s is not ready: %v", vCluster.Namespace, vCluster.Name, err)
 		conditions.MarkFalse(vCluster, v1alpha1.KubeconfigReadyCondition, "CheckFailed", v1alpha1.ConditionSeverityWarning, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
-	return ctrl.Result{}, nil
+	vCluster.Status.Ready, err = r.checkReadyz(vCluster, restConfig)
+	if err != nil || !vCluster.Status.Ready {
+		r.Log.Debugf("readiness check failed: %v", err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
+	}
+
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
-func (r *VClusterReconciler) reconcilePhase(_ context.Context, vCluster *v1alpha1.VCluster) {
-	vCluster.Status.Ready = conditions.IsTrue(vCluster, v1alpha1.KubeconfigReadyCondition)
-
+func (r *VClusterReconciler) reconcilePhase(vCluster *v1alpha1.VCluster) {
 	if vCluster.Status.Phase != v1alpha1.VirtualClusterPending {
 		vCluster.Status.Phase = v1alpha1.VirtualClusterPending
 	}
@@ -314,20 +319,20 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	return nil
 }
 
-func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster *v1alpha1.VCluster) (*rest.Config, error) {
 	credentials, err := GetVClusterCredentials(ctx, r.Client, vCluster)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	restConfig, err := kubeconfighelper.NewVClusterClientConfig(vCluster.Name, vCluster.Namespace, "", credentials.ClientCert, credentials.ClientKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ctxTimeout, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -337,7 +342,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	if !conditions.IsTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition) {
 		_, err = kubeClient.CoreV1().ServiceAccounts("default").Get(ctxTimeout, "default", metav1.GetOptions{})
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		conditions.MarkTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition)
@@ -346,10 +351,10 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
 	kubeConfig, err := GetVClusterKubeConfig(ctx, r.Client, vCluster)
 	if err != nil {
-		return fmt.Errorf("can not retrieve kubeconfig: %v", err)
+		return nil, fmt.Errorf("can not retrieve kubeconfig: %v", err)
 	}
 	if len(kubeConfig.Clusters) != 1 {
-		return fmt.Errorf("unexpected kube config")
+		return nil, fmt.Errorf("unexpected kube config")
 	}
 
 	// If vcluster.spec.controlPlaneEndpoint.Host is not set, try to autodiscover it from
@@ -358,7 +363,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	if controlPlaneHost == "" {
 		controlPlaneHost, err = DiscoverHostFromService(ctx, r.Client, vCluster)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// write the discovered host back into vCluster CR
 		vCluster.Spec.ControlPlaneEndpoint.Host = controlPlaneHost
@@ -383,11 +388,11 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	}
 	outKubeConfig, err := clientcmd.Write(*kubeConfig)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	kubeSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-kubeconfig", vCluster.Name), Namespace: vCluster.Namespace}}
-	_, err = controllerutil.CreateOrUpdate(ctx, r.Client, kubeSecret, func() error {
+	_, err = controllerutil.CreateOrPatch(ctx, r.Client, kubeSecret, func() error {
 		if kubeSecret.Data == nil {
 			kubeSecret.Data = make(map[string][]byte)
 		}
@@ -395,11 +400,38 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("can not create a kubeconfig secret: %v", err)
+		return nil, fmt.Errorf("can not create a kubeconfig secret: %v", err)
 	}
 
 	conditions.MarkTrue(vCluster, v1alpha1.KubeconfigReadyCondition)
-	return nil
+	return restConfig, nil
+}
+
+func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig *rest.Config) (bool, error) {
+	t := time.Now()
+	transport, err := rest.TransportFor(restConfig)
+	if err != nil {
+		return false, err
+	}
+	client := http.Client{
+		Timeout:   10 * time.Second,
+		Transport: transport,
+	}
+	resp, err := client.Get(fmt.Sprintf("https://%s:%d/readyz", vCluster.Spec.ControlPlaneEndpoint.Host, vCluster.Spec.ControlPlaneEndpoint.Port))
+	r.Log.Debugf("%s/%s: ready check took: %v", vCluster.Namespace, vCluster.Name, time.Since(t))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, err
+	}
+	if string(body) != "ok" {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
