@@ -51,6 +51,10 @@ type VClusterStatus struct {
 	// +optional
 	Ready bool `json:"ready"`
 
+	// Initialized defines if the virtual cluster control plane was initialized.
+	// +optional
+	Initialized bool `json:"initialized"`
+
 	// Phase describes the current phase the virtual cluster is in
 	// +optional
 	Phase VirtualClusterPhase `json:"phase,omitempty"`

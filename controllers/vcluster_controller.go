@@ -347,6 +347,9 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 
 		conditions.MarkTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition)
 	}
+	// setting .Status.Initialized outside of the condition above to ensure
+	// that it is set on old CRs, which were missing this field, as well
+	vCluster.Status.Initialized = true
 
 	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
 	kubeConfig, err := GetVClusterKubeConfig(ctx, r.Client, vCluster)

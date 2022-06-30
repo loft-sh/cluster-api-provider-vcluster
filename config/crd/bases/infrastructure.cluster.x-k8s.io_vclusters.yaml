@@ -124,6 +124,10 @@ spec:
                   - type
                   type: object
                 type: array
+              initialized:
+                description: Initialized defines if the virtual cluster control plane
+                  was initialized.
+                type: boolean
               message:
                 description: Message describes the reason in human readable form why
                   the cluster is in the currrent phase

@@ -7,6 +7,10 @@ spec:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
     kind: VCluster
     name: ${CLUSTER_NAME}
+  controlPlaneRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: VCluster
+    name: ${CLUSTER_NAME}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
 kind: VCluster
