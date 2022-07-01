@@ -19,6 +19,7 @@ deployments:
       kustomize: true
       manifests:
       - config/default/
+      - config/crd/
 dev:
   provider:
     namespace: cluster-api-provider-vcluster-system
@@ -27,7 +28,7 @@ dev:
     terminal:
       command: "./devspace_start.sh"
     ports:
-    - port: 2346:2345
+    - port: 2348:2345
     sync:
     - path: ./
       excludePaths:

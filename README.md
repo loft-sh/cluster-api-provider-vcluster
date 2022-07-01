@@ -53,7 +53,7 @@ clusterctl generate cluster ${CLUSTER_NAME} \
 
 Now we just need to wait until vcluster custom resource reports ready status:
 ```shell
-kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
+kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME --timeout=300s
 ```
 At this point the cluster is ready to be used. Please refer to the next chapter to get the credentials.
 
@@ -109,6 +109,6 @@ cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTE
 
 Now we just need to wait until VCluster custom resource reports ready status:
 ```shell
-kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
+kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME --timeout=300s
 ```
 At this point the cluster is ready to be used. Please refer to "How to connect to your vcluster" chapter above to get the credentials.

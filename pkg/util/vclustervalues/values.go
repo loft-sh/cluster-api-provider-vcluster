@@ -14,16 +14,14 @@ type Values interface {
 	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error)
 }
 
-func NewValuesMerger(kubernetesVersion *version.Info, serviceCIDR string) Values {
+func NewValuesMerger(kubernetesVersion *version.Info) Values {
 	return &values{
 		kubernetesVersion: kubernetesVersion,
-		serviceCIDR:       serviceCIDR,
 	}
 }
 
 type values struct {
 	kubernetesVersion *version.Info
-	serviceCIDR       string
 }
 
 func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error) {
@@ -57,7 +55,6 @@ func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRe
 			ChartName:         release.Chart.Name,
 			ChartRepo:         release.Chart.Repo,
 			ChartVersion:      release.Chart.Version,
-			CIDR:              v.serviceCIDR,
 			KubernetesVersion: v.kubernetesVersion,
 		}, logger,
 	)
