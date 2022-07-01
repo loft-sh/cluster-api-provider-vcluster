@@ -1,8 +1,8 @@
 # Quick Start
-In this guide we will deploy Nginx in a Kind cluster and verify connectivity with curl.
+In this guide we will deploy Nginx in a kind cluster and verify connectivity with curl.
 
-## Prerequisites instructions
-Ensure you have the following installed
+## Prerequisites
+Ensure that you have the following installed:
 - [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) v1.2 or greater
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - [kind](https://kind.sigs.k8s.io/)
@@ -62,9 +62,8 @@ Next we will create our virtual cluster within our `kind` cluster.
 ```shell
 export CLUSTER_NAME=kind
 export CLUSTER_NAMESPACE=vcluster
-# Note same version as kind cluster above
 export KUBERNETES_VERSION=1.23.4 
-export HELM_VALUES=""
+export HELM_VALUES="service:\n  type: NodePort"
 
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \
@@ -92,16 +91,13 @@ vcluster                               Active   48s
 
 `vcluster` is the namespace for our virtual cluster. Now lets attempt to use it.
 
-**Note! Keep the following command running for the duration of this tutorial**
 ```shell
 vcluster connect kind -n vcluster
 
-Forwarding from 127.0.0.1:12675 -> 8443
-Forwarding from [::1]:12675 -> 8443
+info   Starting proxy container...
 done √ Switched active kube context to vcluster_kind_vcluster_kind-kind
-warn   Since you are using port-forwarding to connect, you will need to leave this terminal open
-- Use CTRL+C to return to your previous kube context
-- Use `kubectl get namespaces` in another terminal to access the vcluster
+- Use `vcluster disconnect` to return to your previous kube context
+- Use `kubectl get namespaces` to access the vcluster
 ```
 
 Now let's verify that we're in the virtual cluster context.
@@ -124,7 +120,6 @@ kubectl create namespace demo-nginx
 
 namespace/demo-nginx created
 ```
-
 
 ```shell
 # First we create a namespace for nginx
