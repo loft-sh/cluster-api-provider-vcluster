@@ -167,7 +167,7 @@ github.com/kballard/go-shellquote
 # github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
 ## explicit
 github.com/liggitt/tabwriter
-# github.com/loft-sh/vcluster v0.10.2
+# github.com/loft-sh/vcluster v0.11.0-alpha.0
 ## explicit; go 1.18
 github.com/loft-sh/vcluster/cmd/vclusterctl/log
 github.com/loft-sh/vcluster/cmd/vclusterctl/log/survey
