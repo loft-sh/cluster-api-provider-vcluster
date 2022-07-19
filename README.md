@@ -64,7 +64,7 @@ There are multiple methods for exposing your vcluster instance, and they are des
 
 However, if you are not exposing the vcluster instance with an external hostname, but you want to connect to it from outside the cluster, you will need to use the [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup):
 ```shell
-vcluster connect ${CLUSTER_NAME} -n {CLUSTER_NAMESPACE}
+vcluster connect ${CLUSTER_NAME} -n ${CLUSTER_NAMESPACE}
 ```
 
 
