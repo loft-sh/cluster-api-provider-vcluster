@@ -1,8 +1,11 @@
 package log
 
 import (
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log/survey"
+	"github.com/go-logr/logr"
 	"github.com/sirupsen/logrus"
+
+	"github.com/loft-sh/vcluster/cmd/vclusterctl/log/survey"
+	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 )
 
 // Level type
@@ -58,4 +61,8 @@ type Logger interface {
 
 	SetLevel(level logrus.Level)
 	GetLevel() logrus.Level
+
+	// Fulfill pkg/util/loghelper interface... :/
+	Base() logr.Logger
+	WithName(name string) loghelper.Logger
 }

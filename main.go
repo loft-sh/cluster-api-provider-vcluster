@@ -85,7 +85,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
+	restConfig := mgr.GetConfig()
+
+	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(restConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to get config")
 		os.Exit(1)
