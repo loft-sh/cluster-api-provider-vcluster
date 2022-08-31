@@ -52,6 +52,90 @@ However, if you are not exposing the vcluster instance with an external hostname
 vcluster connect ${CLUSTER_NAME} -n ${CLUSTER_NAMESPACE}
 ```
 
+# vcluster custom resource example
+With the `clusterctl generate cluster` command we are producing a manifest with two Kubernetes custom resources - Cluster (cluster.x-k8s.io/v1beta1) and VCluster (infrastructure.cluster.x-k8s.io/v1alpha1).  
+Below you may find an example of these two CRs with the comments explaining important fields.
+
+``` yaml
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  # Two *Ref fields below must reference VCluster CR by name
+  # in order to conform to the CAPI contract   
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: VCluster
+    # name field must match .metadata.name of the VCluster CR
+    name: ${CLUSTER_NAME}
+  controlPlaneRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: VCluster
+    # name field must match .metadata.name of the VCluster CR
+    name: ${CLUSTER_NAME}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VCluster
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  # Kubernetes version that should be used in this vcluster instance, e.g. "1.23".
+  # The patch number from the version will be ignored, and the latest supported one
+  # by the used chart will be installed.
+  # Versions out of the supported range will be ignored, and earliest/latest supported
+  # version will be used instead.
+  kubernetesVersion: "1.24"
+
+  # We are using vcluster Helm charts for the installation and upgrade.
+  # The helmRelease sub-fields allow you to set Helm values and chart repo, name and version.
+  # Sources of the charts can be found here - https://github.com/loft-sh/vcluster/tree/main/charts 
+  #
+  # This field, and all it's sub-fields, are optional.
+  helmRelease:
+
+    # The values field must contain a string with contents that would make a valid YAML file.
+    # Please refer to vcluster documentation for the extensive explanation of the features,
+    # and the appropriate Helm values that need to be set for your use case - https://www.vcluster.com/docs
+    values: |-
+      # example:
+      # syncer:
+      #   extraArgs:
+      #   - --tls-san=myvcluster.mydns.abc
+
+    chart: 
+      # By default, the "https://charts.loft.sh" repo is used
+      repo: ${CHART_REPO:=null}
+      # By default, the "vcluster" chart is used. This coresponds to the "k3s" distro of the
+      # vcluster, and the "/charts/k3s" folder in the vcluster GitHub repo.
+      # Other available options currently are: "vcluster-k8s", "vcluster-k0s" and "vcluster-eks".
+      name: ${CHART_NAME:=null}
+      # By default, a particular vcluster version is used in a given CAPVC release. You may find
+      # it out from the source code, e.g.: 
+      # https://github.com/loft-sh/cluster-api-provider-vcluster/blob/v0.1.3/pkg/constants/constants.go#L7
+      #
+      # Please refer to the vcluster Releases page for the list of the available versions:
+      # https://github.com/loft-sh/vcluster/releases
+      version: ${CHART_VERSION:=null}
+
+  # controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
+  # You may leave this field empty, and then CAPVC will try to fill in this information based
+  # on the network resources created by the chart (Service, Ingress).
+  # The vcluster chart provides options to create a service of LoadBalancer type by setting
+  # Helm value - `.service.type: "LoadBalancer"`, or creating an Ingress by setting Helm value
+  # `.ingress.enabled: true` and `.ingress.host`. You can explore all options in the charts
+  # folder of our vcluster repo - https://github.com/loft-sh/vcluster/tree/main/charts
+  #
+  # We also recommend reading official vcluster documentation page on this topic:
+  # https://www.vcluster.com/docs/operator/external-access
+  # this page outlines additional Helm values that you will need to set in certain cases, e.g.
+  # `.syncer.extraArgs: ["--tls-san=myvcluster.mydns.abc"]`
+  #
+  # This field, and all it's sub-fields, are optional.
+  controlPlaneEndpoint:
+    host: "myvcluster.mydns.abc"
+    port: "443"
+```
 
 # Development instructions
 
