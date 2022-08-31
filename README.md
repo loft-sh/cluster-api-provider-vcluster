@@ -8,25 +8,10 @@ This is a [Cluster API](https://cluster-api.sigs.k8s.io/introduction.html) provi
 # Installation instructions
 
 Prerequisites:
-- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl)
+- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) (v1.1.5+)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - A Kubernetes cluster where you will have cluster-admin permissions
 - Optional, depending on how you expose the vcluster instance - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
-
-As a first step, we need to add the cluster-api-provider-vcluster configuration into your local clusterctl configuration file `~/.cluster-api/clusterctl.yaml` as the following:
-
-```yaml
-providers:
-  - name: vcluster
-    url: https://github.com/loft-sh/cluster-api-provider-vcluster/releases/latest/infrastructure-components.yaml
-    type: InfrastructureProvider                                                           
-```
-
-You should be able to see the vcluster provider when running `clusterctl config repositories`:
-```shell
-clusterctl config repositories | grep vcluster
-vcluster   InfrastructureProvider   https://github.com/loft-sh/cluster-api-provider-vcluster/releases/latest/                    infrastructure-components.yaml
-```
 
 Install the vcluster provider
 
