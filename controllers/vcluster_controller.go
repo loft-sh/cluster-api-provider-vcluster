@@ -25,6 +25,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/loft-sh/utils/pkg/log"
+	vconstants "github.com/loft-sh/vcluster/pkg/constants"
+	"github.com/loft-sh/vcluster/pkg/lifecycle"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
@@ -57,9 +60,11 @@ import (
 // VClusterReconciler reconciles a VCluster object
 type VClusterReconciler struct {
 	client.Client
+	*kubernetes.Clientset
 	HelmClient        helm.Client
 	HelmSecrets       *helm.Secrets
 	Log               loghelper.Logger
+	LogCommon         log.Logger
 	Scheme            *runtime.Scheme
 	clusterKindExists bool
 }
@@ -163,6 +168,28 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 		}
 	}()
 
+	// check if we have to pause
+	err = r.pauseIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Errorf("error during virtual cluster pause %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Paused", v1alpha1.ConditionSeverityError, "%v", err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
+	// check if we have to resume
+	err = r.resumeIfNeeded(ctx, vCluster)
+	if err != nil {
+		r.Log.Errorf("error during virtual cluster resume %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	}
+
+	// if vCluster is paused, skip remaining reconciliation
+	if conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
+		r.Log.Infof("skipping remaining reconciliation for paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+	r.Log.Infof("reconciling deployment, kubeconfig & health for active virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
@@ -208,6 +235,41 @@ func (r *VClusterReconciler) reconcilePhase(vCluster *v1alpha1.VCluster) {
 			break
 		}
 	}
+}
+
+func (r *VClusterReconciler) pauseIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	if !ok || v != "true" {
+		return nil
+	}
+
+	if err := lifecycle.PauseVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, r.LogCommon); err != nil {
+		return err
+	}
+
+	labelSelector := fmt.Sprintf("vcluster.loft.sh/managed-by=%s", vCluster.Name)
+	if err := lifecycle.DeleteVClusterWorkloads(r.Clientset, labelSelector, vCluster.Namespace, r.LogCommon); err != nil {
+		return err
+	}
+
+	conditions.MarkTrue(vCluster, v1alpha1.PausedCondition)
+	r.Log.Infof("paused virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+	return nil
+}
+
+func (r *VClusterReconciler) resumeIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+	v, ok := vCluster.Annotations[vconstants.PausedAnnotation]
+	if !ok || v != "false" || !conditions.IsTrue(vCluster, v1alpha1.PausedCondition) {
+		return nil
+	}
+
+	if err := lifecycle.ResumeVCluster(r.Clientset, vCluster.Name, vCluster.Namespace, r.LogCommon); err != nil {
+		return err
+	}
+
+	conditions.MarkFalse(vCluster, v1alpha1.PausedCondition, "Resumed", v1alpha1.ConditionSeverityInfo, "Resumed")
+	r.Log.Infof("resumed virtual cluster: %s/%s", vCluster.Namespace, vCluster.Name)
+	return nil
 }
 
 func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
@@ -281,7 +343,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 			Version: chartVersion,
 		},
 		Values: values,
-	}, r.Log)
+	}, r.LogCommon)
 	if err != nil {
 		return fmt.Errorf("merge values: %v", err)
 	}

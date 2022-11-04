@@ -18,6 +18,9 @@ const (
 
 	// HelmChartDeployedCondition defines the helm chart deployed condition type that defines if the helm chart was deployed correctly.
 	HelmChartDeployedCondition ConditionType = "HelmChartDeployed"
+
+	// PausedCondition defines the paused condition type that defines if the vcluster is currently paused.
+	PausedCondition ConditionType = "Paused"
 )
 
 // ConditionSeverity expresses the severity of a Condition Type failing.
