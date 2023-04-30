@@ -2,10 +2,9 @@ package vclustervalues
 
 import (
 	"github.com/ghodss/yaml"
-	vclusterhelm "github.com/loft-sh/vcluster/pkg/helm"
-	vclustervalues "github.com/loft-sh/vcluster/pkg/helm/values"
+	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
+	vclustervalues "github.com/loft-sh/utils/pkg/helm/values"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
-	"k8s.io/apimachinery/pkg/version"
 
 	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
 )
@@ -14,14 +13,14 @@ type Values interface {
 	Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error)
 }
 
-func NewValuesMerger(kubernetesVersion *version.Info) Values {
+func NewValuesMerger(kubernetesVersion vclusterhelm.Version) Values {
 	return &values{
 		kubernetesVersion: kubernetesVersion,
 	}
 }
 
 type values struct {
-	kubernetesVersion *version.Info
+	kubernetesVersion vclusterhelm.Version
 }
 
 func (v *values) Merge(release *v1alpha1.VirtualClusterHelmRelease, logger loghelper.Logger) (string, error) {

@@ -3,7 +3,6 @@ package helm
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -14,8 +13,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
-
-var CommandPath = "helm"
 
 // UpgradeOptions holds all the options for upgrading / installing a chart
 type UpgradeOptions struct {
@@ -35,8 +32,9 @@ type UpgradeOptions struct {
 	Password string
 	WorkDir  string
 
-	Atomic bool
-	Force  bool
+	Insecure bool
+	Atomic   bool
+	Force    bool
 }
 
 // Client defines the interface how to interact with helm
@@ -57,11 +55,11 @@ type client struct {
 }
 
 // NewClient creates a new helm client from the given config
-func NewClient(config *clientcmdapi.Config, log log.Logger) Client {
+func NewClient(config *clientcmdapi.Config, log log.Logger, commandPath string) Client {
 	return &client{
 		config:   config,
 		log:      log,
-		helmPath: CommandPath,
+		helmPath: commandPath,
 	}
 }
 
@@ -112,6 +110,9 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 	if options.CreateNamespace {
 		args = append(args, "--create-namespace")
 	}
+	if options.Insecure {
+		args = append(args, "--insecure-skip-tls-verify")
+	}
 
 	args = append(args, "--kubeconfig", kubeConfig, "--namespace", namespace)
 	args = append(args, extraArgs...)
@@ -119,7 +120,7 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 	// Values
 	if options.Values != "" {
 		// Create temp file
-		tempFile, err := ioutil.TempFile("", "")
+		tempFile, err := os.CreateTemp("", "")
 		if err != nil {
 			return errors.Wrap(err, "create temp file")
 		}
@@ -197,9 +198,8 @@ func (c *client) run(ctx context.Context, name, namespace string, options Upgrad
 	output, err := cmd.CombinedOutput()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return fmt.Errorf("error executing helm %s: operation timedout", command)
+		return fmt.Errorf("error executing helm %s: %s operation timedout", string(output), command)
 	}
-
 	if err != nil {
 		return fmt.Errorf("error executing helm %s: %s", strings.Join(args, " "), string(output))
 	}
@@ -268,7 +268,7 @@ func WriteKubeConfig(configRaw *clientcmdapi.Config) (string, error) {
 	}
 
 	// Create temp file
-	tempFile, err := ioutil.TempFile("", "")
+	tempFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return "", errors.Wrap(err, "create temp file")
 	}

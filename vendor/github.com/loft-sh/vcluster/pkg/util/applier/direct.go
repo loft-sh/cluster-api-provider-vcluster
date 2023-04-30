@@ -48,7 +48,7 @@ func (d *DirectApplier) Apply(ctx context.Context, opt ApplierOptions) error {
 	}
 
 	f := cmdutil.NewFactory(restClientGetter)
-	res := resource.NewBuilder(restClientGetter).Unstructured().Stream(ioReader, "manifestString").Do()
+	res := resource.NewBuilder(restClientGetter).Unstructured().Stream(ioReader, "manifests").Do()
 	infos, resErr := res.Infos()
 
 	// Populate the namespace on any namespace-scoped objects
@@ -123,7 +123,6 @@ func newOptions(flags *apply.ApplyFlags, namespace string) (*apply.ApplyOptions,
 		All:             flags.All,
 		Overwrite:       flags.Overwrite,
 		OpenAPIPatch:    flags.OpenAPIPatch,
-		PruneWhitelist:  flags.PruneWhitelist,
 
 		Recorder:         recorder,
 		Namespace:        namespace,
