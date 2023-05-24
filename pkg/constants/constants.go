@@ -4,7 +4,7 @@ import "os"
 
 var (
 	// DefaultVClusterVersion is the default version of the virtual cluster to use
-	DefaultVClusterVersion = "0.11.1"
+	DefaultVClusterVersion = "0.15.0"
 
 	// DefaultVClusterChartName is the default chart name of the virtual cluster to use
 	DefaultVClusterChartName = "vcluster"

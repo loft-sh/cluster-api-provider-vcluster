@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	"github.com/loft-sh/vcluster/pkg/util/loghelper"
@@ -35,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -253,9 +253,9 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		values = vCluster.Spec.HelmRelease.Values
 	}
 
-	kVersion := &version.Info{
+	kVersion := vclusterhelm.Version{
 		Major: "1",
-		Minor: "23",
+		Minor: "26",
 	}
 	if vCluster.Spec.KubernetesVersion != nil && *vCluster.Spec.KubernetesVersion != "" {
 		v := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
