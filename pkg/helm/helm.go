@@ -3,7 +3,6 @@ package helm
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -35,7 +34,7 @@ type UpgradeOptions struct {
 	Force           bool
 	CreateNamespace bool
 
-	InsecureSkipTlsVerify bool
+	InsecureSkipTLSVerify bool
 
 	ExtraArgs []string
 }
@@ -91,11 +90,15 @@ func (c *client) exec(args []string) error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		if strings.Index(string(output), "release: not found") > -1 {
+		if strings.Contains(string(output), "release: not found") {
 			return nil
 		}
-
-		klog.Errorf("Error executing helm %s: %s", strings.Join(args, " "), string(output))
+		klog.TODO().Error(
+			err,
+			"error executing helm",
+			"args", args,
+			"output", string(output),
+		)
 		return fmt.Errorf("error executing helm %s: %s", args[0], string(output))
 	}
 
@@ -164,7 +167,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	// Values
 	if options.Values != "" {
 		// Create temp file
-		tempFile, err := ioutil.TempFile("", "")
+		tempFile, err := os.CreateTemp("", "")
 		if err != nil {
 			return errors.Wrap(err, "create temp file")
 		}
@@ -224,7 +227,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	if options.Atomic {
 		args = append(args, "--atomic")
 	}
-	if options.InsecureSkipTlsVerify {
+	if options.InsecureSkipTLSVerify {
 		args = append(args, "--insecure-skip-tls-verify")
 	}
 
@@ -252,7 +255,7 @@ func (c *client) Exists(name, namespace string) (bool, error) {
 	args := []string{"status", name, "--namespace", namespace, "--kubeconfig", kubeConfig}
 	output, err := exec.Command(c.helmPath, args...).CombinedOutput()
 	if err != nil {
-		if strings.Index(string(output), "release: not found") > -1 {
+		if strings.Contains(string(output), "release: not found") {
 			return false, nil
 		}
 
@@ -270,7 +273,7 @@ func WriteKubeConfig(configRaw *clientcmdapi.Config) (string, error) {
 	}
 
 	// Create temp file
-	tempFile, err := ioutil.TempFile("", "")
+	tempFile, err := os.CreateTemp("", "")
 	if err != nil {
 		return "", errors.Wrap(err, "create temp file")
 	}

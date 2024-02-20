@@ -184,6 +184,8 @@ func (g conditionGroup) mergePriority() int {
 			return 1
 		case v1alpha1.ConditionSeverityInfo:
 			return 2
+		case v1alpha1.ConditionSeverityNone:
+			return 10
 		}
 	case corev1.ConditionTrue:
 		return 3

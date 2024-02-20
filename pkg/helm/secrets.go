@@ -21,7 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -45,7 +45,7 @@ type Release struct {
 	// Info provides information about a release
 	Info *Info `json:"info,omitempty"`
 	// Chart is the chart that was released.
-	Chart *Chart `json:"chart,omitempty"`
+	Chart *MetadataChart `json:"chart,omitempty"`
 	// Config is the set of extra Values added to the chart.
 	// These values override the default values inside of the chart.
 	Config map[string]interface{} `json:"config,omitempty"`
@@ -80,7 +80,7 @@ type Info struct {
 }
 
 // Chart holds the chart metadata
-type Chart struct {
+type MetadataChart struct {
 	Metadata *Metadata `json:"metadata,omitempty"`
 }
 
@@ -144,7 +144,7 @@ func (secrets *Secrets) List(ctx context.Context, labels kblabels.Selector, name
 		return nil, err
 	}
 
-	var results []*Release
+	results := make([]*Release, 0, len(list.Items))
 
 	// iterate over the secrets object list
 	// and decode each release
@@ -152,10 +152,13 @@ func (secrets *Secrets) List(ctx context.Context, labels kblabels.Selector, name
 		cpy := item
 		rls, err := decodeRelease(&cpy, string(item.Data["release"]))
 		if err != nil {
-			klog.Infof("list: failed to decode release: %v", err)
+			klog.FromContext(ctx).Error(err,
+				"list: failed to decode release",
+				"namespace", item.Namespace,
+				"name", item.Name)
 			continue
 		} else if rls.Chart == nil || rls.Chart.Metadata == nil || rls.Info == nil {
-			klog.Infof("list: metadata info is empty of release: %s", rls.Name)
+			klog.FromContext(ctx).Info("list: metadata info is empty of release", "name", rls.Name)
 			continue
 		}
 
@@ -206,7 +209,7 @@ func decodeRelease(secret *corev1.Secret, data string) (*Release, error) {
 		if err != nil {
 			return nil, err
 		}
-		b2, err := ioutil.ReadAll(r)
+		b2, err := io.ReadAll(r)
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +219,7 @@ func decodeRelease(secret *corev1.Secret, data string) (*Release, error) {
 	var rls Release
 	// unmarshal release object bytes
 	if err := json.Unmarshal(b, &rls); err != nil {
-		return nil, fmt.Errorf("error decoding %s: %v", string(b), err)
+		return nil, fmt.Errorf("error decoding %s: %w", string(b), err)
 	}
 
 	rls.Secret = secret

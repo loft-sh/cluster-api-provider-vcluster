@@ -1,6 +1,6 @@
 package helm
 
-type HelmChart struct {
+type Chart struct {
 	// Metadata provides information about a chart
 	// +optional
 	Metadata Metadata `json:"metadata,omitempty"`
@@ -11,10 +11,10 @@ type HelmChart struct {
 
 	// Repository is the repository name of this chart
 	// +optional
-	Repository HelmChartRepository `json:"repository,omitempty"`
+	Repository ChartRepository `json:"repository,omitempty"`
 }
 
-type HelmChartRepository struct {
+type ChartRepository struct {
 	// Name is the name of the repository
 	// +optional
 	Name string `json:"name,omitempty"`
