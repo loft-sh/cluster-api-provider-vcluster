@@ -90,8 +90,10 @@ func main() {
 		setupLog.Error(err, "unable to get config")
 		os.Exit(1)
 	}
-	logOpts := []logr.Option{logr.WithComponentName("vcluster-controller")}
-	log, err := logr.NewLoggerWithOptions(logOpts...)
+	log, err := logr.NewLoggerWithOptions(
+	  logr.WithOptionsFromEnv(),
+	  logr.WithComponentName("vcluster-controller"),
+	)
 	if err = (&controllers.VClusterReconciler{
 		Client:      mgr.GetClient(),
 		HelmClient:  helm.NewClient(rawConfig),
