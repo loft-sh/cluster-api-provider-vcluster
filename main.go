@@ -24,7 +24,6 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -36,6 +35,7 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
+	"github.com/loft-sh/log/logr"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -90,12 +90,13 @@ func main() {
 		setupLog.Error(err, "unable to get config")
 		os.Exit(1)
 	}
-
+	logOpts := []logr.Option{logr.WithComponentName("vcluster-controller")}
+	log, err := logr.NewLoggerWithOptions(logOpts...)
 	if err = (&controllers.VClusterReconciler{
 		Client:      mgr.GetClient(),
 		HelmClient:  helm.NewClient(rawConfig),
 		HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-		Log:         loghelper.New("vcluster-controller"),
+		Log:         log,
 		Scheme:      mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VCluster")

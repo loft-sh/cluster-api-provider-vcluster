@@ -24,6 +24,7 @@ type ChartOptions struct {
 	DisableTelemetry    bool
 	InstanceCreatorType string
 	InstanceCreatorUID  string
+	Pro                 bool
 }
 
 type Version struct {
