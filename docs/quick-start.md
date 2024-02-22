@@ -122,7 +122,7 @@ namespace/demo-nginx created
 ```
 
 ```shell
-# First we create a namespace for nginx
+# Then let's create the deployment for nginx
 kubectl create deployment nginx-deployment -n demo-nginx --image=nginx
 
 deployment.apps/nginx-deployment created
