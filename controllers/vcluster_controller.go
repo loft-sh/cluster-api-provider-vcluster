@@ -25,10 +25,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
-	"github.com/loft-sh/vcluster/pkg/util/loghelper"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +59,7 @@ type VClusterReconciler struct {
 	client.Client
 	HelmClient        helm.Client
 	HelmSecrets       *helm.Secrets
-	Log               loghelper.Logger
+	Log               logr.Logger
 	Scheme            *runtime.Scheme
 	clusterKindExists bool
 }
@@ -80,7 +80,7 @@ const (
 )
 
 func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, reterr error) {
-	r.Log.Debugf("Reconcile %s", req.NamespacedName)
+	r.Log.V(1).Info("Reconcile", "namespacedName", req.NamespacedName)
 
 	// get virtual cluster object
 	vCluster := &v1alpha1.VCluster{}
@@ -166,7 +166,10 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// check if we have to redeploy
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
-		r.Log.Infof("error during virtual cluster deploy %s/%s: %v", vCluster.Namespace, vCluster.Name, err)
+		r.Log.Error(err, "error during virtual cluster deploy",
+			"namespace", vCluster.Namespace,
+			"name", vCluster.Name,
+		)
 		conditions.MarkFalse(vCluster, v1alpha1.HelmChartDeployedCondition, "HelmDeployFailed", v1alpha1.ConditionSeverityError, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, err
 	}
@@ -174,14 +177,18 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 	// check if vcluster is initialized and sync the kubeconfig Secret
 	restConfig, err := r.syncVClusterKubeconfig(ctx, vCluster)
 	if err != nil {
-		r.Log.Debugf("vcluster %s/%s is not ready: %v", vCluster.Namespace, vCluster.Name, err)
+		r.Log.V(1).Info("vcluster is not ready",
+			"namespace", vCluster.Namespace,
+			"name", vCluster.Name,
+			"err", err,
+		)
 		conditions.MarkFalse(vCluster, v1alpha1.KubeconfigReadyCondition, "CheckFailed", v1alpha1.ConditionSeverityWarning, "%v", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
 	vCluster.Status.Ready, err = r.checkReadyz(vCluster, restConfig)
 	if err != nil || !vCluster.Status.Ready {
-		r.Log.Debugf("readiness check failed: %v", err)
+		r.Log.V(1).Info("readiness check failed", "err", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
 
@@ -210,13 +217,16 @@ func (r *VClusterReconciler) reconcilePhase(vCluster *v1alpha1.VCluster) {
 	}
 }
 
-func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1alpha1.VCluster) error {
+func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alpha1.VCluster) error {
 	// upgrade chart
 	if vCluster.Generation == vCluster.Status.ObservedGeneration && conditions.IsTrue(vCluster, v1alpha1.HelmChartDeployedCondition) {
 		return nil
 	}
 
-	r.Log.Debugf("upgrade virtual cluster helm chart %s/%s", vCluster.Namespace, vCluster.Name)
+	r.Log.V(1).Info("upgrade virtual cluster helm chart",
+		"namespace", vCluster.Namespace,
+		"clusterName", vCluster.Name,
+	)
 
 	var chartRepo string
 	if vCluster.Spec.HelmRelease != nil {
@@ -259,15 +269,19 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 	}
 	if vCluster.Spec.KubernetesVersion != nil && *vCluster.Spec.KubernetesVersion != "" {
 		v := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
+		if len(v) != 2 && len(v) != 3 {
+			return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
+		}
 		if len(v) == 2 {
 			kVersion.Major = v[0]
 			kVersion.Minor = v[1]
-		} else if len(v) == 3 {
+		} else {
 			kVersion.Major = v[0]
 			kVersion.Minor = v[1]
-			r.Log.Infof("vclusters %s/%s patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used", vCluster.Namespace, vCluster.Name)
-		} else {
-			return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
+			r.Log.Info("vclusters patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used",
+				"namespace", vCluster.Namespace,
+				"clusterName", vCluster.Name,
+			)
 		}
 	}
 
@@ -283,11 +297,14 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 		Values: values,
 	}, r.Log)
 	if err != nil {
-		return fmt.Errorf("merge values: %v", err)
+		return fmt.Errorf("merge values: %w", err)
 	}
 
-	r.Log.Infof("Deploy virtual cluster %s/%s with values: %s", vCluster.Namespace, vCluster.Name, values)
-
+	r.Log.Info("Deploy virtual cluster",
+		"namespace", vCluster.Namespace,
+		"clusterName", vCluster.Name,
+		"values", values,
+	)
 	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
 	_, err = os.Stat(chartPath)
 	if err != nil {
@@ -310,7 +327,7 @@ func (r *VClusterReconciler) redeployIfNeeded(ctx context.Context, vCluster *v1a
 			err = fmt.Errorf("%v ... ", err.Error()[:512])
 		}
 
-		return fmt.Errorf("error installing / upgrading vcluster: %v", err)
+		return fmt.Errorf("error installing / upgrading vcluster: %w", err)
 	}
 
 	conditions.MarkTrue(vCluster, v1alpha1.HelmChartDeployedCondition)
@@ -354,7 +371,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
 	kubeConfig, err := GetVClusterKubeConfig(ctx, r.Client, vCluster)
 	if err != nil {
-		return nil, fmt.Errorf("can not retrieve kubeconfig: %v", err)
+		return nil, fmt.Errorf("can not retrieve kubeconfig: %w", err)
 	}
 	if len(kubeConfig.Clusters) != 1 {
 		return nil, fmt.Errorf("unexpected kube config")
@@ -403,7 +420,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("can not create a kubeconfig secret: %v", err)
+		return nil, fmt.Errorf("can not create a kubeconfig secret: %w", err)
 	}
 
 	conditions.MarkTrue(vCluster, v1alpha1.KubeconfigReadyCondition)
@@ -421,7 +438,7 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 		Transport: transport,
 	}
 	resp, err := client.Get(fmt.Sprintf("https://%s:%d/readyz", vCluster.Spec.ControlPlaneEndpoint.Host, vCluster.Spec.ControlPlaneEndpoint.Port))
-	r.Log.Debugf("%s/%s: ready check took: %v", vCluster.Namespace, vCluster.Name, time.Since(t))
+	r.Log.V(1).Info("ready check done", "namespace", vCluster.Namespace, "name", vCluster.Name, "duration", time.Since(t))
 	if err != nil {
 		return false, err
 	}
@@ -437,7 +454,7 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 	return true, nil
 }
 
-func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
+func DiscoverHostFromService(_ context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
 	host := ""
 	err := wait.PollImmediate(time.Second*2, time.Second*10, func() (done bool, err error) {
 		service := &corev1.Service{}
@@ -472,7 +489,7 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 		return true, nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("can not get vcluster service: %v", err)
+		return "", fmt.Errorf("can not get vcluster service: %w", err)
 	}
 
 	if host == "" {
@@ -497,7 +514,7 @@ func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCl
 
 	kubeConfig, err := clientcmd.Load(kcBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load vcluster kube config: %v", err)
+		return nil, fmt.Errorf("failed to load vcluster kube config: %w", err)
 	}
 
 	return kubeConfig, nil
@@ -535,7 +552,10 @@ func (r *VClusterReconciler) deleteHelmChart(ctx context.Context, namespace, nam
 		return nil
 	}
 
-	r.Log.Debugf("delete vcluster %s/%s helm release", namespace, name)
+	r.Log.Info("delete vcluster helm release",
+		"namespace", namespace,
+		"name", name,
+	)
 	return r.HelmClient.Delete(name, namespace)
 }
 

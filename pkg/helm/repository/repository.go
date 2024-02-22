@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -19,16 +18,16 @@ import (
 	"github.com/pkg/errors"
 )
 
-// RepositoryEntries describes the entries of an helm chart repository
-type RepositoryEntries struct {
+// Entries describes the entries of an helm chart repository
+type Entries struct {
 	// The API Version of this repository.
 	APIVersion string `json:"apiVersion,omitempty"`
 	// The entries of this repository
 	Entries map[string][]*helm.Metadata `json:"entries,omitempty"`
 }
 
-// RepositoryDefinition defines a named repository
-type RepositoryDefinition struct {
+// Definition defines a named repository
+type Definition struct {
 	Name     string `json:"name,omitempty"`
 	URL      string `json:"url,omitempty"`
 	Username string `json:"username,omitempty"`
@@ -36,7 +35,7 @@ type RepositoryDefinition struct {
 	Insecure bool   `json:"insecure,omitempty"`
 }
 
-func ParseReadmeValues(ctx context.Context, helmChart *helm.HelmChart) (string, string, error) {
+func ParseReadmeValues(ctx context.Context, helmChart *helm.Chart) (string, string, error) {
 	if len(helmChart.Metadata.Urls) == 0 {
 		return "", "", nil
 	}
@@ -69,7 +68,7 @@ func ParseReadmeValues(ctx context.Context, helmChart *helm.HelmChart) (string, 
 	)
 
 	tarReader := tar.NewReader(uncompressedStream)
-	for true {
+	for {
 		header, err := tarReader.Next()
 		if err == io.EOF {
 			break
@@ -93,7 +92,9 @@ func ParseReadmeValues(ctx context.Context, helmChart *helm.HelmChart) (string, 
 				if values != "" {
 					return readme, values, nil
 				}
-			} else if splitted[0] == "values.yaml" || (len(splitted) > 1 && splitted[1] == "values.yaml") {
+				continue
+			}
+			if splitted[0] == "values.yaml" || (len(splitted) > 1 && splitted[1] == "values.yaml") {
 				buffer := &bytes.Buffer{}
 				_, err := io.Copy(buffer, tarReader)
 				if err != nil {
@@ -104,10 +105,10 @@ func ParseReadmeValues(ctx context.Context, helmChart *helm.HelmChart) (string, 
 				if readme != "" {
 					return readme, values, nil
 				}
-			} else {
-				if _, err := io.Copy(io.Discard, tarReader); err != nil {
-					return "", "", fmt.Errorf("extract: Copy() failed: %s", err.Error())
-				}
+				continue
+			}
+			if _, err := io.Copy(io.Discard, tarReader); err != nil {
+				return "", "", fmt.Errorf("extract: Copy() failed: %s", err.Error())
 			}
 		default:
 			return "", "", fmt.Errorf("extract: uknown type: %v in %s", header.Typeflag, header.Name)
@@ -117,7 +118,7 @@ func ParseReadmeValues(ctx context.Context, helmChart *helm.HelmChart) (string, 
 	return readme, values, nil
 }
 
-func ParseRepository(ctx context.Context, repository *RepositoryDefinition) ([]helm.HelmChart, error) {
+func ParseRepository(ctx context.Context, repository *Definition) ([]helm.Chart, error) {
 	indexURL := strings.Join([]string{strings.TrimRight(repository.URL, "/"), "index.yaml"}, "/")
 	body, err := Get(ctx, &http.Client{
 		Timeout: time.Second * 20,
@@ -126,25 +127,25 @@ func ParseRepository(ctx context.Context, repository *RepositoryDefinition) ([]h
 		},
 	}, indexURL, repository.Username, repository.Password)
 	if err != nil {
-		return nil, fmt.Errorf("skipping repo %s, because of error retrieving app store repository index %s: %v", repository.Name, indexURL, err)
+		return nil, fmt.Errorf("skipping repo %s, because of error retrieving app store repository index %s: %w", repository.Name, indexURL, err)
 	}
 
-	entries := &RepositoryEntries{}
+	entries := &Entries{}
 	err = yaml.Unmarshal(body, entries)
 	if err != nil {
-		return nil, fmt.Errorf("skipping repo %s, because of error parsing app store repository index %s: %v", repository.Name, indexURL, err)
+		return nil, fmt.Errorf("skipping repo %s, because of error parsing app store repository index %s: %w", repository.Name, indexURL, err)
 	}
 
 	// we only add the latest version to avoid huge files
-	charts := []helm.HelmChart{}
+	charts := []helm.Chart{}
 	for _, metadatas := range entries.Entries {
 		if len(metadatas) == 0 {
 			continue
 		}
 
-		chart := helm.HelmChart{
+		chart := helm.Chart{
 			Metadata: *metadatas[0],
-			Repository: helm.HelmChartRepository{
+			Repository: helm.ChartRepository{
 				Name:     repository.Name,
 				URL:      repository.URL,
 				Username: repository.Username,
@@ -166,7 +167,7 @@ func ParseRepository(ctx context.Context, repository *RepositoryDefinition) ([]h
 }
 
 func newRequest(ctx context.Context, client *http.Client, url, username, password string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +194,7 @@ func Get(ctx context.Context, client *http.Client, url, username, password strin
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

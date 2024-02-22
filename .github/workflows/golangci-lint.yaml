@@ -1,0 +1,46 @@
+name: golangci-lint
+
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - main
+    paths:
+      - "**/*.go"
+  pull_request:
+
+permissions:
+  contents: read
+  # Optional: allow read access to pull request. Use with `only-new-issues` option.
+  pull-requests: read
+
+jobs:
+  golangci:
+    name: lint
+    runs-on: ubuntu-latest
+
+    env:
+      GOPRIVATE: "github.com/loft-sh/*"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache: false
+
+      - name: Build logcheck plugin
+        run: go build -o "tools/logcheck.so" -mod=vendor -buildmode=plugin sigs.k8s.io/logtools/logcheck/plugin
+        env:
+          GOWORK: off
+
+      - name: Build golangci-lint
+        run: go build -o "tools/golangci-lint" -mod=vendor ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
+
+      - name: Run golangci-lint
+        run: tools/golangci-lint run --out-format=github-actions ./...
+        env:
+          LOGCHECK_CONFIG: hack/logcheck.conf

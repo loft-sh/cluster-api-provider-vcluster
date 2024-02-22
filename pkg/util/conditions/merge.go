@@ -41,6 +41,7 @@ type localizedCondition struct {
 //   - P2 - Status=False, Severity=Info
 //   - P3 - Status=True
 //   - P4 - Status=Unknown
+//
 // 3. The group with highest priority is used to determine status, severity and other info of the target condition.
 //
 // Please note that the last operation includes also the task of computing the Reason and the Message for the target
@@ -183,6 +184,8 @@ func (g conditionGroup) mergePriority() int {
 			return 1
 		case v1alpha1.ConditionSeverityInfo:
 			return 2
+		case v1alpha1.ConditionSeverityNone:
+			return 10
 		}
 	case corev1.ConditionTrue:
 		return 3

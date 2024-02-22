@@ -31,3 +31,5 @@ testbin/*
 /.devspace/
 devvalues.yaml
 kubeconfig.yaml
+
+/tools

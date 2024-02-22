@@ -2,6 +2,6 @@ package compress
 
 import "testing"
 
-func TestCompress(t *testing.T) {
+func TestCompress(_ *testing.T) {
 	// TODO
 }

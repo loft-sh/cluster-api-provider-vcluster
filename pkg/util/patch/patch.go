@@ -23,11 +23,11 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
 
 	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -127,7 +127,7 @@ func (h *Helper) Patch(ctx context.Context, obj client.Object, opts ...Option) e
 	}
 
 	// Issue patches and return errors in an aggregate.
-	return kerrors.NewAggregate([]error{
+	return k8serrors.NewAggregate([]error{
 		// Patch the conditions first.
 		//
 		// Given that we pass in metadata.resourceVersion to perform a 3-way-merge conflict resolution,
@@ -238,7 +238,7 @@ func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, f
 		// Issue the patch.
 		err := h.client.Status().Patch(ctx, latest, conditionsPatch)
 		switch {
-		case apierrors.IsConflict(err):
+		case kerrors.IsConflict(err):
 			// Requeue.
 			return false, nil
 		case err != nil:
