@@ -53,6 +53,15 @@ func (p *HelmChartInflationGeneratorPlugin) Config(
 	if h.GeneralConfig().HelmConfig.Command == "" {
 		return fmt.Errorf("must specify --helm-command")
 	}
+
+	// CLI args takes precedence
+	if h.GeneralConfig().HelmConfig.KubeVersion != "" {
+		p.HelmChart.KubeVersion = h.GeneralConfig().HelmConfig.KubeVersion
+	}
+	if len(h.GeneralConfig().HelmConfig.ApiVersions) != 0 {
+		p.HelmChart.ApiVersions = h.GeneralConfig().HelmConfig.ApiVersions
+	}
+
 	p.h = h
 	if err = yaml.Unmarshal(config, p); err != nil {
 		return
@@ -91,7 +100,7 @@ func (p *HelmChartInflationGeneratorPlugin) validateArgs() (err error) {
 	// be under the loader root (unless root restrictions are
 	// disabled).
 	if p.ValuesFile == "" {
-		p.ValuesFile = filepath.Join(p.ChartHome, p.Name, "values.yaml")
+		p.ValuesFile = filepath.Join(p.absChartHome(), p.Name, "values.yaml")
 	}
 	for i, file := range p.AdditionalValuesFiles {
 		// use Load() to enforce root restrictions
@@ -132,10 +141,17 @@ func (p *HelmChartInflationGeneratorPlugin) errIfIllegalValuesMerge() error {
 }
 
 func (p *HelmChartInflationGeneratorPlugin) absChartHome() string {
+	var chartHome string
 	if filepath.IsAbs(p.ChartHome) {
-		return p.ChartHome
+		chartHome = p.ChartHome
+	} else {
+		chartHome = filepath.Join(p.h.Loader().Root(), p.ChartHome)
 	}
-	return filepath.Join(p.h.Loader().Root(), p.ChartHome)
+
+	if p.Version != "" && p.Repo != "" {
+		return filepath.Join(chartHome, fmt.Sprintf("%s-%s", p.Name, p.Version))
+	}
+	return chartHome
 }
 
 func (p *HelmChartInflationGeneratorPlugin) runHelmCommand(
@@ -155,8 +171,8 @@ func (p *HelmChartInflationGeneratorPlugin) runHelmCommand(
 		helm := p.h.GeneralConfig().HelmConfig.Command
 		err = errors.WrapPrefixf(
 			fmt.Errorf(
-				"unable to run: '%s %s' with env=%s (is '%s' installed?)",
-				helm, strings.Join(args, " "), env, helm),
+				"unable to run: '%s %s' with env=%s (is '%s' installed?): %w",
+				helm, strings.Join(args, " "), env, helm, err),
 			stderr.String(),
 		)
 	}
@@ -262,15 +278,18 @@ func (p *HelmChartInflationGeneratorPlugin) Generate() (rm resmap.ResMap, err er
 	// helm may produce messages to stdout before it
 	r := &kio.ByteReader{Reader: bytes.NewBufferString(string(stdout)), OmitReaderAnnotations: true}
 	nodes, err := r.Read()
+	if err != nil {
+		return nil, fmt.Errorf("error reading helm output: %w", err)
+	}
 
 	if len(nodes) != 0 {
 		rm, err = p.h.ResmapFactory().NewResMapFromRNodeSlice(nodes)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse rnode slice into resource map: %w\n", err)
+			return nil, fmt.Errorf("could not parse rnode slice into resource map: %w", err)
 		}
 		return rm, nil
 	}
-	return nil, fmt.Errorf("could not parse bytes into resource map: %w\n", resMapErr)
+	return nil, fmt.Errorf("could not parse bytes into resource map: %w", resMapErr)
 }
 
 func (p *HelmChartInflationGeneratorPlugin) pullCommand() []string {
@@ -278,8 +297,18 @@ func (p *HelmChartInflationGeneratorPlugin) pullCommand() []string {
 		"pull",
 		"--untar",
 		"--untardir", p.absChartHome(),
-		"--repo", p.Repo,
-		p.Name}
+	}
+
+	switch {
+	case strings.HasPrefix(p.Repo, "oci://"):
+		args = append(args, strings.TrimSuffix(p.Repo, "/")+"/"+p.Name)
+	case p.Repo != "":
+		args = append(args, "--repo", p.Repo)
+		fallthrough
+	default:
+		args = append(args, p.Name)
+	}
+
 	if p.Version != "" {
 		args = append(args, "--version", p.Version)
 	}

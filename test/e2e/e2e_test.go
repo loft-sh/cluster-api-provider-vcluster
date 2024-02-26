@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/cmd/vclusterctl/cmd"
 	"github.com/loft-sh/vcluster/cmd/vclusterctl/flags"
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
 	logutil "github.com/loft-sh/vcluster/pkg/util/log"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -59,7 +59,7 @@ var _ = ginkgo.Describe("e2e test", func() {
 				KubeConfig: vKubeconfigFile.Name(),
 				LocalPort:  14550, // choosing a port that usually should be unused
 			}
-			err = connectCmd.Connect(ctx, "vcluster", nil)
+			err = connectCmd.Connect(ctx, nil, "vcluster", nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute*5, false, func(ctx context.Context) (bool, error) {

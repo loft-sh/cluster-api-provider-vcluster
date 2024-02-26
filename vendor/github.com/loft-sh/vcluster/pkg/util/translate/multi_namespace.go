@@ -32,7 +32,7 @@ func (s *multiNamespace) SingleNamespaceTarget() bool {
 }
 
 // PhysicalName returns the physical name of the name / namespace resource
-func (s *multiNamespace) PhysicalName(name, namespace string) string {
+func (s *multiNamespace) PhysicalName(name, _ string) string {
 	return name
 }
 
@@ -53,7 +53,7 @@ func (s *multiNamespace) PhysicalNameClusterScoped(name string) string {
 	if name == "" {
 		return ""
 	}
-	return SafeConcatName("vcluster", name, "x", s.currentNamespace, "x", Suffix)
+	return SafeConcatName("vcluster", name, "x", s.currentNamespace, "x", VClusterName)
 }
 
 func (s *multiNamespace) IsManaged(obj runtime.Object) bool {
@@ -71,7 +71,7 @@ func (s *multiNamespace) IsManaged(obj runtime.Object) bool {
 	}
 
 	_, isCM := obj.(*corev1.ConfigMap)
-	if metaAccessor.GetName() == "kube-root-ca.crt" && isCM {
+	if isCM && metaAccessor.GetName() == "kube-root-ca.crt" {
 		return false
 	}
 
@@ -86,30 +86,34 @@ func (s *multiNamespace) IsManagedCluster(obj runtime.Object) bool {
 		return false
 	}
 
-	return metaAccessor.GetLabels()[MarkerLabel] == SafeConcatName(s.currentNamespace, "x", Suffix)
+	return metaAccessor.GetLabels()[MarkerLabel] == SafeConcatName(s.currentNamespace, "x", VClusterName)
 }
 
 func (s *multiNamespace) IsTargetedNamespace(ns string) bool {
-	return strings.HasPrefix(ns, s.getNamespacePrefix()) && strings.HasSuffix(ns, s.getNamespaceSuffix())
+	return strings.HasPrefix(ns, s.getNamespacePrefix()) && strings.HasSuffix(ns, getNamespaceSuffix(s.currentNamespace, VClusterName))
 }
 
 func (s *multiNamespace) convertLabelKey(key string) string {
 	digest := sha256.Sum256([]byte(key))
-	return SafeConcatName(LabelPrefix, s.currentNamespace, "x", Suffix, "x", hex.EncodeToString(digest[0:])[0:10])
+	return SafeConcatName(LabelPrefix, s.currentNamespace, "x", VClusterName, "x", hex.EncodeToString(digest[0:])[0:10])
 }
 
 func (s *multiNamespace) getNamespacePrefix() string {
 	return "vcluster"
 }
 
-func (s *multiNamespace) getNamespaceSuffix() string {
-	sha := sha256.Sum256([]byte(s.currentNamespace + "x" + Suffix))
-	return hex.EncodeToString(sha[0:])[0:8]
+func (s *multiNamespace) PhysicalNamespace(vNamespace string) string {
+	return PhysicalNamespace(s.currentNamespace, vNamespace, s.getNamespacePrefix(), VClusterName)
 }
 
-func (s *multiNamespace) PhysicalNamespace(vNamespace string) string {
+func PhysicalNamespace(currentNamespace, vNamespace, prefix, suffix string) string {
 	sha := sha256.Sum256([]byte(vNamespace))
-	return fmt.Sprintf("%s-%s-%s", s.getNamespacePrefix(), hex.EncodeToString(sha[0:])[0:8], s.getNamespaceSuffix())
+	return fmt.Sprintf("%s-%s-%s", prefix, hex.EncodeToString(sha[0:])[0:8], getNamespaceSuffix(currentNamespace, suffix))
+}
+
+func getNamespaceSuffix(currentNamespace, suffix string) string {
+	sha := sha256.Sum256([]byte(currentNamespace + "x" + suffix))
+	return hex.EncodeToString(sha[0:])[0:8]
 }
 
 func (s *multiNamespace) TranslateLabelsCluster(vObj client.Object, pObj client.Object, syncedLabels []string) map[string]string {
@@ -143,7 +147,7 @@ func (s *multiNamespace) TranslateLabelsCluster(vObj client.Object, pObj client.
 			newLabels[ControllerLabel] = pObjLabels[ControllerLabel]
 		}
 	}
-	newLabels[MarkerLabel] = SafeConcatName(s.currentNamespace, "x", Suffix)
+	newLabels[MarkerLabel] = SafeConcatName(s.currentNamespace, "x", VClusterName)
 	return newLabels
 }
 
@@ -178,7 +182,7 @@ func (s *multiNamespace) LegacyGetTargetNamespace() (string, error) {
 }
 
 func (s *multiNamespace) ApplyMetadata(vObj client.Object, syncedLabels []string, excludedAnnotations ...string) client.Object {
-	pObj, err := s.SetupMetadataWithName(vObj, func(vName string, vObj client.Object) string {
+	pObj, err := s.SetupMetadataWithName(vObj, func(_ string, vObj client.Object) string {
 		return s.objectPhysicalName(vObj)
 	})
 	if err != nil {
@@ -213,7 +217,7 @@ func (s *multiNamespace) ApplyAnnotations(src client.Object, to client.Object, e
 	return retMap
 }
 
-func (s *multiNamespace) ApplyLabels(src client.Object, dest client.Object, syncedLabels []string) map[string]string {
+func (s *multiNamespace) ApplyLabels(src client.Object, _ client.Object, syncedLabels []string) map[string]string {
 	fromLabels := src.GetLabels()
 	if fromLabels == nil {
 		fromLabels = map[string]string{}
@@ -221,7 +225,7 @@ func (s *multiNamespace) ApplyLabels(src client.Object, dest client.Object, sync
 	return s.TranslateLabels(fromLabels, src.GetNamespace(), syncedLabels)
 }
 
-func (s *multiNamespace) TranslateLabels(fromLabels map[string]string, vNamespace string, syncedLabels []string) map[string]string {
+func (s *multiNamespace) TranslateLabels(fromLabels map[string]string, _ string, _ []string) map[string]string {
 	return fromLabels
 }
 

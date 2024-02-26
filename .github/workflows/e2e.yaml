@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  KUBERNETES_VERSION: 1.27.7
+  KUBERNETES_VERSION: 1.29.2
   VCLUSTER_NAME: vcluster
   VCLUSTER_NAMESPACE: vcluster
 
@@ -56,8 +56,7 @@ jobs:
         run: |
 
           # Install clusterctl
-          # latest = v1.6.2
-          curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.5.7/clusterctl-linux-amd64 -o clusterctl
+          curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.6.3/clusterctl-linux-amd64 -o clusterctl
           chmod +x clusterctl
           sudo mv clusterctl /usr/local/bin/
 
@@ -70,7 +69,6 @@ jobs:
           GOBIN="$(pwd)/bin" go install -tags tools github.com/drone/envsubst/v2/cmd/envsubst@v2.0.0-20210730161058-179042472c46
 
           # Install kubectl
-          # latest = v1.29.2
           curl -LO "https://dl.k8s.io/release/v${{ env.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl"
           chmod +x ./kubectl
           sudo mv ./kubectl /usr/local/bin/kubectl
