@@ -1,0 +1,26 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: Run the build with upterm debugging enabled
+          (https://github.com/lhotari/action-upterm/)
+        required: false
+        default: false
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: e2e-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-test-empty:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo hello
+        run: |
+          echo "hello"
