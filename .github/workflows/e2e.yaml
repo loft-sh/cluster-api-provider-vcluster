@@ -18,9 +18,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+    name: Unit Test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
+
+      - name: Run Unit Tests
+        run: go test ./...
+
   e2e-test-empty:
     runs-on: ubuntu-latest
+    name: E2E Empty Test
     steps:
       - name: Echo hello
         run: |
           echo "hello"
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.22"
