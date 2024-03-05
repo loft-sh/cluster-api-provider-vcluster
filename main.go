@@ -101,11 +101,13 @@ func main() {
 	}
 
 	if err = (&controllers.VClusterReconciler{
-		Client:      mgr.GetClient(),
-		HelmClient:  helm.NewClient(rawConfig),
-		HelmSecrets: helm.NewSecrets(mgr.GetClient()),
-		Log:         log,
-		Scheme:      mgr.GetScheme(),
+		Client:             mgr.GetClient(),
+		HelmClient:         helm.NewClient(rawConfig),
+		HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
+		Log:                log,
+		Scheme:             mgr.GetScheme(),
+		ClientConfigGetter: controllers.NewClientConfigGetter(),
+		HTTPClientGetter:   controllers.NewHTTPClientGetter(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
 		os.Exit(1)

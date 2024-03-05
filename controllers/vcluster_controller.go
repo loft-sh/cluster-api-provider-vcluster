@@ -54,14 +54,49 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/vclustervalues"
 )
 
+type ClientConfigGetter interface {
+	NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error)
+}
+
+type clientConfigGetter struct {
+}
+
+func (c *clientConfigGetter) NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error) {
+	return kubernetes.NewForConfig(restConfig)
+}
+
+func NewClientConfigGetter() ClientConfigGetter {
+	return &clientConfigGetter{}
+}
+
+type HTTPClientGetter interface {
+	ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client
+}
+
+type httpClientGetter struct {
+}
+
+func (h *httpClientGetter) ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: r,
+	}
+}
+
+func NewHTTPClientGetter() HTTPClientGetter {
+	return &httpClientGetter{}
+}
+
 // VClusterReconciler reconciles a VCluster object
 type VClusterReconciler struct {
 	client.Client
-	HelmClient        helm.Client
-	HelmSecrets       *helm.Secrets
-	Log               logr.Logger
-	Scheme            *runtime.Scheme
-	clusterKindExists bool
+	HelmClient         helm.Client
+	HelmSecrets        *helm.Secrets
+	Log                logr.Logger
+	Scheme             *runtime.Scheme
+	ClientConfigGetter ClientConfigGetter
+	HTTPClientGetter   HTTPClientGetter
+	clusterKindExists  bool
 }
 
 type Credentials struct {
@@ -347,7 +382,7 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		return nil, err
 	}
 
-	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	kubeClient, err := r.ClientConfigGetter.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -433,10 +468,7 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 	if err != nil {
 		return false, err
 	}
-	client := http.Client{
-		Timeout:   10 * time.Second,
-		Transport: transport,
-	}
+	client := r.HTTPClientGetter.ClientFor(transport, 10*time.Second)
 	resp, err := client.Get(fmt.Sprintf("https://%s:%d/readyz", vCluster.Spec.ControlPlaneEndpoint.Host, vCluster.Spec.ControlPlaneEndpoint.Port))
 	r.Log.V(1).Info("ready check done", "namespace", vCluster.Namespace, "name", vCluster.Name, "duration", time.Since(t))
 	if err != nil {
