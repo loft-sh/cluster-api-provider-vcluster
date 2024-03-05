@@ -1,4 +1,4 @@
-name: E2E
+name: Tests
 
 on:
   workflow_dispatch:
@@ -17,6 +17,11 @@ concurrency:
   group: e2e-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  KUBERNETES_VERSION: 1.26.1
+  VCLUSTER_NAME: vcluster
+  VCLUSTER_NAMESPACE: vcluster
+
 jobs:
   unit-test:
     runs-on: ubuntu-latest
@@ -33,18 +38,81 @@ jobs:
       - name: Run Unit Tests
         run: go test ./...
 
-  e2e-test-empty:
+  e2e:
     runs-on: ubuntu-latest
-    name: E2E Empty Test
+
+    name: E2E Test
     steps:
-      - name: Echo hello
-        run: |
-          echo "hello"
 
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.22"
+      - name: Install Prerequisites
+        run: |
+
+          # Install clusterctl
+          # latest = v1.6.2
+          curl -L https://github.com/kubernetes-sigs/cluster-api/releases/download/v1.4.1/clusterctl-linux-amd64 -o clusterctl
+          chmod +x clusterctl
+          sudo mv clusterctl /usr/local/bin/
+
+          #Install Kind
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+          # Install envsubst
+          GOBIN="$(pwd)/bin" go install -tags tools github.com/drone/envsubst/v2/cmd/envsubst@v2.0.0-20210730161058-179042472c46
+
+          # Install kubectl
+          # latest = v1.29.2
+          curl -LO "https://dl.k8s.io/release/v${{ env.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
+
+          # Install DevSpace
+          curl -fsSL -o /tmp/devspace https://github.com/devspace-cloud/devspace/releases/latest/download/devspace-linux-amd64
+          chmod +x /tmp/devspace
+          sudo mv /tmp/devspace /usr/local/bin/devspace          
+
+      - name: Create and Start Kind Cluster
+        run: |
+          kind create cluster
+          echo "=== cluster-info ==="
+          kubectl cluster-info --context kind-kind
+
+      - name: Init
+        run: |
+          clusterctl init
+          echo "=== config get-contexts ==="
+          kubectl config get-contexts
+
+      - name: DevSpace Deploy
+        run: |
+          devspace deploy -p deploy
+
+      - name: Display Kubernetes Env
+        run: |
+          echo "=== Kubectl version ==="
+          kubectl version
+          echo "=== Kubectl config ==="
+          kubectl config view
+          echo "=== Kubectl get pods ==="
+          kubectl get pods -A
+          echo "=== Kubectl get namespaces ==="
+          kubectl get namespaces
+          echo "=== Test get crd ==="
+          kubectl get crd
+
+      - name: Create Vcluster Custom Resource
+        run: |
+          export CLUSTER_NAME=${{ env.VCLUSTER_NAME }}
+          export CLUSTER_NAMESPACE=${{ env.VCLUSTER_NAMESPACE }}
+          export KUBERNETES_VERSION=${{ env.KUBERNETES_VERSION }}
+          export HELM_VALUES=""
+          kubectl create namespace ${CLUSTER_NAMESPACE}
+          cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
+
+      - name: Validate Resource Ready
+        run: |
+          kubectl wait --for=condition=ready vcluster -n ${{ env.VCLUSTER_NAMESPACE }} ${{ env.VCLUSTER_NAME }} --timeout=100s
