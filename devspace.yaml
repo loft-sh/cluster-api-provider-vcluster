@@ -42,7 +42,8 @@ dev:
         - '!/go.mod'
         - '!/go.sum'
         - '!/devspace_start.sh'
-        - 'Makefile'
+        - '!/Makefile'
+        - '!/Dockerfile'
 
 commands:
   dev: |-
