@@ -486,11 +486,11 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 	return true, nil
 }
 
-func DiscoverHostFromService(_ context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
+func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster *v1alpha1.VCluster) (string, error) {
 	host := ""
-	err := wait.PollImmediate(time.Second*2, time.Second*10, func() (done bool, err error) {
+	err := wait.PollUntilContextTimeout(ctx, time.Second*2, time.Second*10, true, func(ctx context.Context) (done bool, err error) {
 		service := &corev1.Service{}
-		err = client.Get(context.TODO(), types.NamespacedName{Namespace: vCluster.Namespace, Name: vCluster.Name}, service)
+		err = client.Get(ctx, types.NamespacedName{Namespace: vCluster.Namespace, Name: vCluster.Name}, service)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return true, nil

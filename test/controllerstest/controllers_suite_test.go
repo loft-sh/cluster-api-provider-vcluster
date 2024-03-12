@@ -92,7 +92,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			reconciler = &controllers.VClusterReconciler{
-				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).Build(),
+				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
 				HelmClient: hemlClient,
 				Scheme:     scheme,
 				ClientConfigGetter: &fakeConfigGetter{
