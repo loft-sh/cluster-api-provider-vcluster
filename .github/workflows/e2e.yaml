@@ -9,9 +9,14 @@ on:
           (https://github.com/lhotari/action-upterm/)
         required: false
         default: false
-  pull_request:
+  push:
+    tags:
+      - v*
     branches:
       - main
+    paths:
+      - "**/*.go"
+  pull_request:
 
 concurrency:
   group: e2e-${{ github.head_ref || github.ref_name }}
