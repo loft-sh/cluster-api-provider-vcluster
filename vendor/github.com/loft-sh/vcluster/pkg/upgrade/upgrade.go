@@ -6,13 +6,15 @@ import (
 	"regexp"
 	"sync"
 
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
+	"github.com/loft-sh/log"
 	"github.com/pkg/errors"
 	"k8s.io/klog/v2"
 
 	"github.com/blang/semver"
 	"github.com/rhysd/go-github-selfupdate/selfupdate"
 )
+
+const DevelopmentVersion = "0.0.1"
 
 // Version holds the current version tag
 var version string
@@ -62,7 +64,7 @@ func SetVersion(verText string) {
 
 var (
 	latestVersion     string
-	latestVersionErr  error
+	errLatestVersion  error
 	latestVersionOnce sync.Once
 )
 
@@ -71,7 +73,7 @@ func CheckForNewerVersion() (string, error) {
 	latestVersionOnce.Do(func() {
 		latest, found, err := selfupdate.DetectLatest(githubSlug)
 		if err != nil {
-			latestVersionErr = err
+			errLatestVersion = err
 			return
 		}
 
@@ -83,7 +85,7 @@ func CheckForNewerVersion() (string, error) {
 		latestVersion = latest.Version.String()
 	})
 
-	return latestVersion, latestVersionErr
+	return latestVersion, errLatestVersion
 }
 
 // NewerVersionAvailable checks if there is a newer version of vcluster
@@ -111,8 +113,14 @@ func NewerVersionAvailable() string {
 
 // Upgrade downloads the latest release from github and replaces vcluster if a new version is found
 func Upgrade(flagVersion string, log log.Logger) error {
+	updater, err := selfupdate.NewUpdater(selfupdate.Config{
+		Filters: []string{"vcluster"},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize updater: %w", err)
+	}
 	if flagVersion != "" {
-		release, found, err := selfupdate.DetectVersion(githubSlug, flagVersion)
+		release, found, err := updater.DetectVersion(githubSlug, flagVersion)
 		if err != nil {
 			return errors.Wrap(err, "find version")
 		} else if !found {
@@ -124,9 +132,8 @@ func Upgrade(flagVersion string, log log.Logger) error {
 			return err
 		}
 
-		log.StartWait(fmt.Sprintf("Downloading version %s...", flagVersion))
-		err = selfupdate.DefaultUpdater().UpdateTo(release, cmdPath)
-		log.StopWait()
+		log.Infof("Downloading version %s...", flagVersion)
+		err = updater.UpdateTo(release, cmdPath)
 		if err != nil {
 			return err
 		}
@@ -146,9 +153,8 @@ func Upgrade(flagVersion string, log log.Logger) error {
 
 	v := semver.MustParse(version)
 
-	log.StartWait("Downloading newest version...")
-	latest, err := selfupdate.UpdateSelf(v, githubSlug)
-	log.StopWait()
+	log.Info("Downloading newest version...")
+	latest, err := updater.UpdateSelf(v, githubSlug)
 	if err != nil {
 		return err
 	}

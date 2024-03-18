@@ -4,14 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -19,102 +18,53 @@ const (
 	CIDRConfigMapKey    = "cidr"
 	K0sConfigKey        = "config.yaml"
 	K0sCIDRPlaceHolder  = "CIDR_PLACEHOLDER"
-	K0sConfigReadyFlag  = "CONFIG_READY"
 
 	ErrorMessageFind = "The range of valid IPs is "
 	FallbackCIDR     = "10.96.0.0/12"
 )
 
-func GetCIDRConfigMapName(vclusterName string) string {
-	return fmt.Sprintf("%s%s", CIDRConfigMapPrefix, vclusterName)
+func GetK0sSecretName(vClusterName string) string {
+	return fmt.Sprintf("vc-%s-config", vClusterName)
 }
 
-func GetK0sSecretName(vclusterName string) string {
-	return fmt.Sprintf("vc-%s-config", vclusterName)
-}
-
-func EnsureServiceCIDRConfigmap(ctx context.Context, workspaceNamespaceClient, currentNamespaceClient kubernetes.Interface, workspaceNamespace, currentNamespace string, vclusterName string) (string, error) {
-	cm, err := currentNamespaceClient.CoreV1().ConfigMaps(currentNamespace).Get(ctx, GetCIDRConfigMapName(vclusterName), metav1.GetOptions{})
-	if err != nil && !kerrors.IsNotFound(err) {
-		return "", err
-	}
-	exists := !kerrors.IsNotFound(err)
-	if !exists {
-		cm = &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      GetCIDRConfigMapName(vclusterName),
-				Namespace: currentNamespace,
-			},
-		}
-	}
-	cidrData, ok := cm.Data[CIDRConfigMapKey]
-	// do nothing if a valid CIDR is already present in the expected Configmap data key
-	if exists && ok {
-		_, _, err = net.ParseCIDR(cidrData)
-		if err == nil {
-			return cidrData, err
-		}
-	}
-
-	// find out correct cidr
-	cidr, warning := GetServiceCIDR(ctx, workspaceNamespaceClient, workspaceNamespace)
-	if warning != "" {
-		klog.Info(warning)
-	}
-
-	if !exists {
-		cm.Data = map[string]string{
-			CIDRConfigMapKey: cidr,
-		}
-		_, err = currentNamespaceClient.CoreV1().ConfigMaps(currentNamespace).Create(ctx, cm, metav1.CreateOptions{})
-		return cidr, err
-	}
-
-	// create and execute a Patch call for the ConfigMap
-	originalObject := cm.DeepCopy()
-	patch := client.MergeFrom(originalObject)
-	if cm.Data == nil {
-		cm.Data = make(map[string]string)
-	}
-	cm.Data[CIDRConfigMapKey] = cidr
-	data, err := patch.Data(cm)
+func EnsureServiceCIDRInK0sSecret(
+	ctx context.Context,
+	workspaceNamespaceClient,
+	currentNamespaceClient kubernetes.Interface,
+	workspaceNamespace,
+	currentNamespace string,
+	vClusterName string,
+) (string, error) {
+	secret, err := currentNamespaceClient.CoreV1().Secrets(currentNamespace).Get(ctx, GetK0sSecretName(vClusterName), metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to create patch for the %s/%s Configmap: %v", cm.Namespace, cm.Name, err)
+		return "", fmt.Errorf("could not read k0s configuration secret %s/%s: %w", currentNamespace, GetK0sSecretName(vClusterName), err)
 	}
-	_, err = currentNamespaceClient.CoreV1().ConfigMaps(currentNamespace).Patch(ctx, cm.Name, patch.Type(), data, metav1.PatchOptions{})
-	return cidr, err
-}
 
-func EnsureServiceCIDRInK0sSecret(ctx context.Context, workspaceNamespaceClient, currentNamespaceClient kubernetes.Interface, workspaceNamespace, currentNamespace string, vclusterName string) error {
-	secret, err := currentNamespaceClient.CoreV1().Secrets(currentNamespace).Get(ctx, GetK0sSecretName(vclusterName), metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("could not read k0s configuration secret %s/%s: %v", currentNamespace, GetK0sSecretName(vclusterName), err)
-	}
+	// verify secret
 	configData, ok := secret.Data[K0sConfigKey]
 	if !ok {
-		return fmt.Errorf("k0s configuration secret %s/%s does not contain the expected key - %s", secret.Namespace, secret.Name, K0sConfigKey)
+		return "", fmt.Errorf("k0s configuration secret %s/%s does not contain the expected key - %s", secret.Namespace, secret.Name, K0sConfigKey)
 	}
 
 	// find out correct cidr
-	cidr, warning := GetServiceCIDR(ctx, workspaceNamespaceClient, workspaceNamespace)
+	serviceCIDR, warning := GetServiceCIDR(ctx, workspaceNamespaceClient, workspaceNamespace)
 	if warning != "" {
 		klog.Info(warning)
 	}
-	newData := strings.ReplaceAll(string(configData), K0sCIDRPlaceHolder, cidr)
+	// only return the first cidr, because k0s don't accept coma separated ones
+	serviceCIDR = strings.Split(serviceCIDR, ",")[0]
 
-	originalObject := secret.DeepCopy()
-	secret.Data[K0sConfigKey] = []byte(newData)
-	secret.Data[K0sConfigReadyFlag] = []byte("true")
-	patch := client.MergeFrom(originalObject)
-	data, err := patch.Data(secret)
+	// apply changes
+	updatedConfig := []byte(strings.ReplaceAll(string(configData), K0sCIDRPlaceHolder, serviceCIDR))
+
+	// write the config to file
+	err = os.WriteFile("/tmp/k0s-config.yaml", updatedConfig, 0640)
 	if err != nil {
-		return fmt.Errorf("failed to create patch for the %s/%s Secret: %v", secret.Namespace, secret.Name, err)
+		klog.Errorf("error while write k0s config to file: %s", err.Error())
+		return "", err
 	}
-	_, err = currentNamespaceClient.CoreV1().Secrets(secret.Namespace).Patch(ctx, secret.Name, patch.Type(), data, metav1.PatchOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to patch k0s configuration secret %s/%s: %v", secret.Namespace, secret.Name, err)
-	}
-	return nil
+
+	return serviceCIDR, nil
 }
 
 func GetServiceCIDR(ctx context.Context, client kubernetes.Interface, namespace string) (string, string) {
@@ -156,13 +106,13 @@ func GetServiceCIDR(ctx context.Context, client kubernetes.Interface, namespace 
 			if testService.Spec.IPFamilies[0] == corev1.IPv4Protocol {
 				// IPv4 is the default
 				return fmt.Sprintf("%s,%s", ipv4CIDR, ipv6CIDR), ""
-			} else {
-				// IPv6 is the default
-				return fmt.Sprintf("%s,%s", ipv6CIDR, ipv4CIDR), ""
 			}
-		} else {
-			return ipv4CIDR, fmt.Sprintf("unexpected number of entries in .Spec.IPFamilies - %d, defaulting to IPv4 CIDR only", len(testService.Spec.IPFamilies))
+
+			// IPv6 is the default
+			return fmt.Sprintf("%s,%s", ipv6CIDR, ipv4CIDR), ""
 		}
+
+		return ipv4CIDR, fmt.Sprintf("unexpected number of entries in .Spec.IPFamilies - %d, defaulting to IPv4 CIDR only", len(testService.Spec.IPFamilies))
 	}
 
 	return fmt.Sprintf("%s,%s", ipv4CIDR, ipv6CIDR), "failed to find host cluster default Service IP family, defaulting to IPv4 family"

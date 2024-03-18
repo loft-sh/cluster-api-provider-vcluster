@@ -1,7 +1,7 @@
 package telemetry
 
 import (
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/log"
+	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/pkg/util/cliconfig"
 	"github.com/spf13/cobra"
 )
@@ -25,28 +25,19 @@ func disable() *cobra.Command {
 Disables collection of anonymized vcluster telemetry.
 
 More information about the collected telmetry is in the
-docs: https://www.vcluster.com/docs/telemetry
+docs: https://www.vcluster.com/docs/advanced-topics/telemetry
 
 #######################################################
 	`,
-		RunE: func(cobraCmd *cobra.Command, args []string) error {
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			return cmd.Run(cobraCmd)
 		}}
 
 	return cobraCmd
 }
 
-func (cmd *DisableCmd) Run(cobraCmd *cobra.Command) error {
-	c, err := cliconfig.GetConfig()
-	if err != nil {
-		return err
-	}
-
+func (cmd *DisableCmd) Run(*cobra.Command) error {
+	c := cliconfig.GetConfig(cmd.log)
 	c.TelemetryDisabled = true
-
-	err = cliconfig.WriteConfig(c)
-	if err != nil {
-		return err
-	}
-	return nil
+	return cliconfig.WriteConfig(c)
 }

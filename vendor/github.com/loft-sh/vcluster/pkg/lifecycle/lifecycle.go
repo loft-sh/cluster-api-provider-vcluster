@@ -65,7 +65,11 @@ func DeleteVClusterWorkloads(ctx context.Context, kubeClient *kubernetes.Clients
 		log.Infof("Delete %d vcluster workloads", len(list.Items))
 		for _, item := range list.Items {
 			err = kubeClient.CoreV1().Pods(namespace).Delete(ctx, item.Name, metav1.DeleteOptions{})
+
 			if err != nil {
+				if kerrors.IsNotFound(err) {
+					continue
+				}
 				return errors.Wrapf(err, "delete pod %s/%s", namespace, item.Name)
 			}
 		}
@@ -74,7 +78,7 @@ func DeleteVClusterWorkloads(ctx context.Context, kubeClient *kubernetes.Clients
 	return nil
 }
 
-func DeleteMultiNamespaceVclusterWorkloads(ctx context.Context, client *kubernetes.Clientset, vclusterName, vclusterNamespace string, log log.BaseLogger) error {
+func DeleteMultiNamespaceVclusterWorkloads(ctx context.Context, client *kubernetes.Clientset, vclusterName, vclusterNamespace string, _ log.BaseLogger) error {
 	// get all host namespaces managed by this multinamespace mode enabled vcluster
 	namespaces, err := client.CoreV1().Namespaces().List(ctx, metav1.ListOptions{
 		LabelSelector: labels.FormatLabels(map[string]string{
