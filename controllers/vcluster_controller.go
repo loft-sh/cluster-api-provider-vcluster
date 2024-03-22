@@ -300,7 +300,7 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 
 	kVersion := vclusterhelm.Version{
 		Major: "1",
-		Minor: "26",
+		Minor: "28",
 	}
 	if vCluster.Spec.KubernetesVersion != nil && *vCluster.Spec.KubernetesVersion != "" {
 		v := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
