@@ -10,12 +10,30 @@ WORKDIR /workspace
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
 
 # Install Helm 3
-RUN curl -s https://get.helm.sh/helm-v3.11.1-linux-amd64.tar.gz > helm3.tar.gz \
+RUN if [ "${TARGETARCH}" = "amd64" ]; then \
+ curl -s https://get.helm.sh/helm-v3.11.1-linux-amd64.tar.gz > helm3.tar.gz \
  && tar -zxvf helm3.tar.gz linux-amd64/helm \
  && chmod +x linux-amd64/helm \
  && mv linux-amd64/helm $PWD/helm \
  && rm helm3.tar.gz \
- && rm -R linux-amd64
+ && rm -R linux-amd64; \
+ fi
+RUN if [ "${TARGETARCH}" = "arm64" ]; then \
+ curl -s https://get.helm.sh/helm-v3.11.1-linux-arm64.tar.gz > helm3.tar.gz \
+ && tar -zxvf helm3.tar.gz linux-arm64/helm \
+ && chmod +x linux-arm64/helm \
+ && mv linux-arm64/helm $PWD/helm \
+ && rm helm3.tar.gz \
+ && rm -R linux-arm64; \
+ fi
+RUN if [ "${TARGETARCH}" = "arm/v7" ]; then \
+ curl -s https://get.helm.sh/helm-v3.11.1-linux-arm.tar.gz > helm3.tar.gz \
+ && tar -zxvf helm3.tar.gz linux-arm/helm \
+ && chmod +x linux-arm/helm \
+ && mv linux-arm/helm $PWD/helm \
+ && rm helm3.tar.gz \
+ && rm -R linux-arm; \
+ fi
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
