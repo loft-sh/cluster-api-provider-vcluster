@@ -64,12 +64,17 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 		})
 
 		ginkgo.It("reconcile successfully", func() {
+			virtualClusterVersion := "0.19"
+			kubernetesVersion := "1.29.2"
 			vCluster := &v1alpha1.VCluster{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-vcluster",
 					Namespace: "default",
 				},
-				Spec: v1alpha1.VClusterSpec{},
+				Spec: v1alpha1.VClusterSpec{
+					VirtualClusterVersion: &virtualClusterVersion,
+					KubernetesVersion:     &kubernetesVersion,
+				},
 			}
 			secret := &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{

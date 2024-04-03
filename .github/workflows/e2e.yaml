@@ -24,6 +24,7 @@ concurrency:
 
 env:
   KUBERNETES_VERSION: 1.29.2
+  VCLUSTER_VERSION: 0.19
   VCLUSTER_NAME: vcluster
   VCLUSTER_NAMESPACE: vcluster
 
@@ -117,6 +118,7 @@ jobs:
           export CLUSTER_NAME=${{ env.VCLUSTER_NAME }}
           export CLUSTER_NAMESPACE=${{ env.VCLUSTER_NAMESPACE }}
           export KUBERNETES_VERSION=${{ env.KUBERNETES_VERSION }}
+          export VCLUSTER_VERSION=${{ env.VCLUSTER_VERSION }}
           export HELM_VALUES=$(cat ./test/e2e/values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -

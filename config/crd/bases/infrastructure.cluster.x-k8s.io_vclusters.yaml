@@ -76,11 +76,15 @@ spec:
                     description: the values for the given chart
                     type: string
                 type: object
+              kubernetesImage:
+                type: string
               kubernetesVersion:
                 description: |-
                   Kubernetes version that should be used in this vcluster instance, e.g. "1.23".
                   Versions out of the supported range will be ignored, and earliest/latest supported
                   version will be used instead.
+                type: string
+              virtualClusterVersion:
                 type: string
             type: object
           status:

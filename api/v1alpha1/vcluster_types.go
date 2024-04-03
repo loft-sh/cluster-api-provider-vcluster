@@ -41,6 +41,11 @@ type VClusterSpec struct {
 	// version will be used instead.
 	// +optional
 	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
+
+	// +optional
+	KubernetesImage *string `json:"kubernetesImage,omitempty"`
+	// +optional
+	VirtualClusterVersion *string `json:"virtualClusterVersion,omitempty"`
 }
 
 // VClusterStatus defines the observed state of VCluster

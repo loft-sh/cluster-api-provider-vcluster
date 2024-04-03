@@ -280,16 +280,32 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		chartName = constants.DefaultVClusterChartName
 	}
 
+	if vCluster.Spec.VirtualClusterVersion == nil || *vCluster.Spec.VirtualClusterVersion == "" {
+		return fmt.Errorf("empty value of the .spec.virtualClusterVersion field")
+	}
 	// chart version
-	var chartVersion string
-	if vCluster.Spec.HelmRelease != nil {
-		chartVersion = vCluster.Spec.HelmRelease.Chart.Version
-	}
-	if chartVersion == "" {
-		chartVersion = constants.DefaultVClusterVersion
-	}
+	chartVersion := *vCluster.Spec.VirtualClusterVersion
+
 	if len(chartVersion) > 0 && chartVersion[0] == 'v' {
 		chartVersion = chartVersion[1:]
+	}
+
+	if vCluster.Spec.KubernetesVersion == nil || *vCluster.Spec.KubernetesVersion == "" {
+		return fmt.Errorf("empty value of the .spec.kubernetesVersion field")
+	}
+	kubernetesVersionStr := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
+	if len(kubernetesVersionStr) < 2 || len(kubernetesVersionStr) > 3 {
+		return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
+	}
+	if len(kubernetesVersionStr) == 3 {
+		r.Log.Info("kubernetes patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used",
+			"namespace", vCluster.Namespace,
+			"clusterName", vCluster.Name,
+		)
+	}
+	kubernetesVersion := vclusterhelm.Version{
+		Major: kubernetesVersionStr[0],
+		Minor: kubernetesVersionStr[1],
 	}
 
 	// determine values
@@ -298,36 +314,12 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		values = vCluster.Spec.HelmRelease.Values
 	}
 
-	kVersion := vclusterhelm.Version{
-		Major: "1",
-		Minor: "28",
-	}
-	if vCluster.Spec.KubernetesVersion != nil && *vCluster.Spec.KubernetesVersion != "" {
-		v := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
-		if len(v) != 2 && len(v) != 3 {
-			return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
-		}
-		if len(v) == 2 {
-			kVersion.Major = v[0]
-			kVersion.Minor = v[1]
-		} else {
-			kVersion.Major = v[0]
-			kVersion.Minor = v[1]
-			r.Log.Info("vclusters patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used",
-				"namespace", vCluster.Namespace,
-				"clusterName", vCluster.Name,
-			)
-		}
-	}
-
 	//TODO: if .spec.controlPlaneEndpoint.Host is set it would be nice to pass it as --tls-san flag of syncer
 	values, err := vclustervalues.NewValuesMerger(
-		kVersion,
+		kubernetesVersion,
 	).Merge(&v1alpha1.VirtualClusterHelmRelease{
 		Chart: v1alpha1.VirtualClusterHelmChart{
-			Name:    chartName,
-			Repo:    chartRepo,
-			Version: chartVersion,
+			Name: chartName,
 		},
 		Values: values,
 	}, r.Log)

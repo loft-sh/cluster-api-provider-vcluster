@@ -52,8 +52,6 @@ func (v *values) getVClusterDefaultValues(release *v1alpha1.VirtualClusterHelmRe
 	valuesStr, err := vclustervalues.GetDefaultReleaseValues(
 		&vclusterhelm.ChartOptions{
 			ChartName:         release.Chart.Name,
-			ChartRepo:         release.Chart.Repo,
-			ChartVersion:      release.Chart.Version,
 			KubernetesVersion: v.kubernetesVersion,
 		}, logger,
 	)
