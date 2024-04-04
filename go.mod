@@ -5,7 +5,6 @@ go 1.22.0
 require (
 	github.com/golangci/golangci-lint v1.56.2
 	github.com/loft-sh/log v0.0.0-20240219160058-26d83ffb46ac
-	github.com/loft-sh/utils v0.0.29
 	github.com/onsi/ginkgo/v2 v2.15.0
 	github.com/onsi/gomega v1.31.1
 	github.com/stretchr/testify v1.8.4
@@ -168,6 +167,7 @@ require (
 	github.com/loft-sh/apiserver v0.0.0-20240125143607-a106e2f2e0f1 // indirect
 	github.com/loft-sh/jspolicy v0.2.2 // indirect
 	github.com/loft-sh/loftctl/v3 v3.0.0-20240207094551-f600825cc6f5 // indirect
+	github.com/loft-sh/utils v0.0.29 // indirect
 	github.com/loft-sh/vcluster-values v0.0.0-20240207093538-4bbb24e9f699 // indirect
 	github.com/lufeee/execinquery v1.2.1 // indirect
 	github.com/macabu/inamedparam v0.1.3 // indirect
@@ -327,7 +327,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.29.1 // indirect

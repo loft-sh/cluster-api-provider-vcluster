@@ -17,14 +17,12 @@ kind: VCluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
-  kubernetesVersion: "${KUBERNETES_VERSION:=}"
-  kubernetesImage: "${KUBERNETES_IMAGE:=null}"  
-  virtualClusterVersion: "${VCLUSTER_VERSION:=}"
   helmRelease:
     values: "${HELM_VALUES:=}"
     chart: 
       name: ${CHART_NAME:=null}
       repo: ${CHART_REPO:=null}
+      version: ${CHART_VERSION:=null}
   controlPlaneEndpoint:
     host: ${VCLUSTER_HOST:=""}
     port: ${VCLUSTER_PORT:=0}
