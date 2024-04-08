@@ -1,0 +1,12 @@
+# EKS
+---
+service:
+  type: NodePort
+api:
+  image: public.ecr.aws/eks-distro/kubernetes/kube-apiserver:v1.28.2-eks-1-28-6
+controller:
+  image: public.ecr.aws/eks-distro/kubernetes/kube-controller-manager:v1.28.2-eks-1-28-6
+etcd:
+  image: public.ecr.aws/eks-distro/etcd-io/etcd:v3.5.9-eks-1-28-6
+coredns:
+  image: public.ecr.aws/eks-distro/coredns/coredns:v1.10.1-eks-1-28-6

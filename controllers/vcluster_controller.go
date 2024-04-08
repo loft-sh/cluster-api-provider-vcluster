@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	vclusterhelm "github.com/loft-sh/utils/pkg/helm"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
@@ -51,7 +50,6 @@ import (
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/vclustervalues"
 )
 
 type ClientConfigGetter interface {
@@ -280,51 +278,20 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		chartName = constants.DefaultVClusterChartName
 	}
 
-	if vCluster.Spec.VirtualClusterVersion == nil || *vCluster.Spec.VirtualClusterVersion == "" {
-		return fmt.Errorf("empty value of the .spec.virtualClusterVersion field")
+	if vCluster.Spec.HelmRelease == nil || vCluster.Spec.HelmRelease.Chart.Version == "" {
+		return fmt.Errorf("empty value of the .spec.HelmRelease.Version field")
 	}
 	// chart version
-	chartVersion := *vCluster.Spec.VirtualClusterVersion
+	chartVersion := vCluster.Spec.HelmRelease.Chart.Version
 
 	if len(chartVersion) > 0 && chartVersion[0] == 'v' {
 		chartVersion = chartVersion[1:]
 	}
 
-	if vCluster.Spec.KubernetesVersion == nil || *vCluster.Spec.KubernetesVersion == "" {
-		return fmt.Errorf("empty value of the .spec.kubernetesVersion field")
-	}
-	kubernetesVersionStr := strings.Split(*vCluster.Spec.KubernetesVersion, ".")
-	if len(kubernetesVersionStr) < 2 || len(kubernetesVersionStr) > 3 {
-		return fmt.Errorf("invalid value of the .spec.kubernetesVersion field: %s", *vCluster.Spec.KubernetesVersion)
-	}
-	if len(kubernetesVersionStr) == 3 {
-		r.Log.Info("kubernetes patch version defined in .spec.kubernetesVersion field will be ignored, latest supported patch version will be used",
-			"namespace", vCluster.Namespace,
-			"clusterName", vCluster.Name,
-		)
-	}
-	kubernetesVersion := vclusterhelm.Version{
-		Major: kubernetesVersionStr[0],
-		Minor: kubernetesVersionStr[1],
-	}
-
 	// determine values
 	var values string
-	if vCluster.Spec.HelmRelease != nil {
+	if vCluster.Spec.HelmRelease != nil || vCluster.Spec.HelmRelease.Values == "" {
 		values = vCluster.Spec.HelmRelease.Values
-	}
-
-	//TODO: if .spec.controlPlaneEndpoint.Host is set it would be nice to pass it as --tls-san flag of syncer
-	values, err := vclustervalues.NewValuesMerger(
-		kubernetesVersion,
-	).Merge(&v1alpha1.VirtualClusterHelmRelease{
-		Chart: v1alpha1.VirtualClusterHelmChart{
-			Name: chartName,
-		},
-		Values: values,
-	}, r.Log)
-	if err != nil {
-		return fmt.Errorf("merge values: %w", err)
 	}
 
 	r.Log.Info("Deploy virtual cluster",
@@ -333,7 +300,7 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		"values", values,
 	)
 	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
-	_, err = os.Stat(chartPath)
+	_, err := os.Stat(chartPath)
 	if err != nil {
 		// we have to upgrade / install the chart
 		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{

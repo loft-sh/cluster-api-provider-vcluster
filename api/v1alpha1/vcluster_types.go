@@ -35,17 +35,6 @@ type VClusterSpec struct {
 	// when filled, specified chart will be deployed.
 	// +optional
 	HelmRelease *VirtualClusterHelmRelease `json:"helmRelease,omitempty"`
-
-	// Kubernetes version that should be used in this vcluster instance, e.g. "1.23".
-	// Versions out of the supported range will be ignored, and earliest/latest supported
-	// version will be used instead.
-	// +optional
-	KubernetesVersion *string `json:"kubernetesVersion,omitempty"`
-
-	// +optional
-	KubernetesImage *string `json:"kubernetesImage,omitempty"`
-	// +optional
-	VirtualClusterVersion *string `json:"virtualClusterVersion,omitempty"`
 }
 
 // VClusterStatus defines the observed state of VCluster

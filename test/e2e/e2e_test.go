@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -48,21 +49,24 @@ var _ = ginkgo.Describe("e2e test", func() {
 			// run port forwarder and retrieve kubeconfig for the vcluster
 			var err error
 			vKubeconfigFile, err = os.CreateTemp(os.TempDir(), "vcluster_e2e_kubeconfig_")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+			namespace := os.Getenv("NAMESPACE")
+			localPort, err := strconv.Atoi(os.Getenv("LOCAL_PORT"))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			connectCmd := cmd.ConnectCmd{
 				Log: l,
 				GlobalFlags: &flags.GlobalFlags{
-					Namespace: "vcluster",
+					Namespace: namespace,
 					Debug:     true,
 				},
 				KubeConfig: vKubeconfigFile.Name(),
-				LocalPort:  14550, // choosing a port that usually should be unused
+				LocalPort:  localPort, // choosing a port that usually should be unused
 			}
-			err = connectCmd.Connect(ctx, nil, "vcluster", nil)
+			err = connectCmd.Connect(ctx, nil, namespace, nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute*5, false, func(ctx context.Context) (bool, error) {
+			err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false, func(ctx context.Context) (bool, error) {
 				output, err := os.ReadFile(vKubeconfigFile.Name())
 				if err != nil {
 					return false, nil
@@ -145,13 +149,13 @@ var _ = ginkgo.Describe("e2e test", func() {
 		ginkgo.It("Delete VirtualCluster successfully", func() {
 			_, err := vclusterClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "vcluster",
+					Name: "vcluster-example",
 				},
 			}, metav1.CreateOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			// Delete the VirtualCluster
-			err = vclusterClient.CoreV1().Namespaces().Delete(ctx, "vcluster", metav1.DeleteOptions{})
+			err = vclusterClient.CoreV1().Namespaces().Delete(ctx, "vcluster-example", metav1.DeleteOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 

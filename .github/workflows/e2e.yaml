@@ -22,12 +22,6 @@ concurrency:
   group: e2e-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
-env:
-  KUBERNETES_VERSION: 1.29.2
-  VCLUSTER_VERSION: 0.19
-  VCLUSTER_NAME: vcluster
-  VCLUSTER_NAMESPACE: vcluster
-
 jobs:
   unit-test:
     runs-on: ubuntu-latest
@@ -39,7 +33,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version-file: go.mod
+          go-version-file: "go.mod"
+          cache: false
 
       - name: Run Unit Tests
         run: go test ./test/controllerstest
@@ -56,7 +51,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version-file: go.mod
+          go-version-file: "go.mod"
+          cache: false
 
       - name: Install Prerequisites
         run: |
@@ -75,7 +71,7 @@ jobs:
           GOBIN="$(pwd)/bin" go install -tags tools github.com/drone/envsubst/v2/cmd/envsubst@v2.0.0-20210730161058-179042472c46
 
           # Install kubectl
-          curl -LO "https://dl.k8s.io/release/v${{ env.KUBERNETES_VERSION }}/bin/linux/amd64/kubectl"
+          curl -LO "https://dl.k8s.io/release/v1.29.2/bin/linux/amd64/kubectl"
           chmod +x ./kubectl
           sudo mv ./kubectl /usr/local/bin/kubectl
 
@@ -113,19 +109,69 @@ jobs:
           echo "=== Test get crd ==="
           kubectl get crd
 
-      - name: Create Vcluster Custom Resource
+      - name: Create Vcluster Custom Resource K3S
         run: |
-          export CLUSTER_NAME=${{ env.VCLUSTER_NAME }}
-          export CLUSTER_NAMESPACE=${{ env.VCLUSTER_NAMESPACE }}
-          export KUBERNETES_VERSION=${{ env.KUBERNETES_VERSION }}
-          export VCLUSTER_VERSION=${{ env.VCLUSTER_VERSION }}
-          export HELM_VALUES=$(cat ./test/e2e/values.yaml | sed -z 's/\n/\\n/g')
+          export CLUSTER_NAME=vcluster-k3s
+          export CLUSTER_NAMESPACE=vcluster-k3s
+          export CHART_VERSION=0.19.0
+          export HELM_VALUES=$(cat ./test/e2e/k3s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 
-      - name: Validate Resource Ready
+      - name: Validate Resource Ready K3S
         run: |
-          kubectl wait --for=condition=ready vcluster -n ${{ env.VCLUSTER_NAMESPACE }} ${{ env.VCLUSTER_NAME }} --timeout=100s
+          kubectl wait --for=condition=ready vcluster -n vcluster-k3s vcluster-k3s --timeout=100s
 
-      - name: Run E2E Tests
-        run: go test -mod=vendor ./test/e2e -v
+      - name: Run E2E Tests K3S
+        run: NAMESPACE=vcluster-k3s LOCAL_PORT=14550 go test -mod=vendor ./test/e2e -v
+
+      - name: Create Vcluster Custom Resource K0S
+        run: |
+          export CLUSTER_NAME=vcluster-k0s
+          export CLUSTER_NAMESPACE=vcluster-k0s
+          export CHART_VERSION=0.19.0
+          export CHART_NAME=vcluster-k0s
+          export HELM_VALUES=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
+          kubectl create namespace ${CLUSTER_NAMESPACE}
+          cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
+
+      - name: Validate Resource Ready K0S
+        run: |
+          kubectl wait --for=condition=ready vcluster -n vcluster-k0s vcluster-k0s --timeout=100s
+
+      - name: Run E2E Tests K0S
+        run: NAMESPACE=vcluster-k0s LOCAL_PORT=14551 go test -mod=vendor ./test/e2e -v
+
+      - name: Create Vcluster Custom Resource K8S
+        run: |
+          export CLUSTER_NAME=vcluster-k8s
+          export CLUSTER_NAMESPACE=vcluster-k8s
+          export CHART_VERSION=0.19.0
+          export CHART_NAME=vcluster-k8s
+          export HELM_VALUES=$(cat ./test/e2e/k8s-values.yaml | sed -z 's/\n/\\n/g')
+          kubectl create namespace ${CLUSTER_NAMESPACE}
+          cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
+
+      - name: Validate Resource Ready K8S
+        run: |
+          kubectl wait --for=condition=ready vcluster -n vcluster-k8s vcluster-k8s --timeout=100s
+
+      - name: Run E2E Tests K8S
+        run: NAMESPACE=vcluster-k8s LOCAL_PORT=14552 go test -mod=vendor ./test/e2e -v
+
+      - name: Create Vcluster Custom Resource EKS
+        run: |
+          export CLUSTER_NAME=vcluster-eks
+          export CLUSTER_NAMESPACE=vcluster-eks
+          export CHART_VERSION=0.19.0
+          export CHART_NAME=vcluster-eks
+          export HELM_VALUES=$(cat ./test/e2e/eks-values.yaml | sed -z 's/\n/\\n/g')
+          kubectl create namespace ${CLUSTER_NAMESPACE}
+          cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
+
+      - name: Validate Resource Ready EKS
+        run: |
+          kubectl wait --for=condition=ready vcluster -n vcluster-eks vcluster-eks --timeout=100s
+
+      - name: Run E2E Tests EKS
+        run: NAMESPACE=vcluster-eks LOCAL_PORT=14553 go test -mod=vendor ./test/e2e -v
