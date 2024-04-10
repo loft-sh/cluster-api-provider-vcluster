@@ -165,12 +165,13 @@ go run -mod vendor main.go
 ```
 
 Next, in a separate terminal you will generate a manifest file for a vcluster instance.
-Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, KUBERNETES_VERSION, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CLUSTER_NAME variable is mandatory.
+Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CHART_VERSION and CLUSTER_NAME variables are mandatory.
 In the example commands below, the HELM_VALUES variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export HELM_VALUES...` command when the `devvalues.yaml` changes.
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export KUBERNETES_VERSION=1.26.1
+export CHART_VERSION=0.19.0
+export CHART_NAME=vcluster
 export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
@@ -181,3 +182,96 @@ Now we just need to wait until VCluster custom resource reports ready status:
 kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME --timeout=300s
 ```
 At this point the cluster is ready to be used. Please refer to "How to connect to your vcluster" chapter above to get the credentials.
+
+# Specifying Custom vCluster Helm Versions
+
+You can specify a custom version of the vCluster Helm chart by setting the CHART_VERSION environment variable. This allows you to pin the vCluster installation to a specific version of the Helm chart.
+
+Example:
+
+```shell
+export CHART_VERSION=0.19.0
+```
+
+## Specifying Custom Images for Different Kubernetes Distributions in vCluster
+
+Depending on your needs, you might want to use specific versions of Kubernetes distributions and their components in your vCluster. Here's how you can specify custom images for EKS, k0s, k3s, and standard Kubernetes (k8s).
+
+## EKS Custom Images
+
+For an EKS-based vCluster, specify the custom images for the Kubernetes API server, controller manager, etcd, and CoreDNS in your Helm values file:
+
+```shell
+# eks-values.yaml
+api:
+  image: public.ecr.aws/eks-distro/kubernetes/kube-apiserver:v1.28.2-eks-1-28-6
+controller:
+  image: public.ecr.aws/eks-distro/kubernetes/kube-controller-manager:v1.28.2-eks-1-28-6
+etcd:
+  image: public.ecr.aws/eks-distro/etcd-io/etcd:v3.5.9-eks-1-28-6
+coredns:
+  image: public.ecr.aws/eks-distro/coredns/coredns:v1.10.1-eks-1-28-6
+```
+
+```shell
+export CHART_NAME=vcluster-eks
+```
+
+### k0s Custom Images
+For a k0s-based vCluster, specify the custom vCluster image in your Helm values file:
+
+```shell
+# k0s-values.yaml
+vcluster:
+  image: k0sproject/k0s:v1.29.1-k0s.0
+```
+
+```shell
+export CHART_NAME=vcluster-k0s
+```
+
+### k3s Custom Images
+For a k3s-based vCluster, specify the custom vCluster image in your Helm values file:
+
+```shell
+# k3s-values.yaml
+vcluster:
+  image: rancher/k3s:v1.29.0-k3s1
+```
+
+```shell
+export CHART_NAME=vcluster
+```
+
+### Standard Kubernetes (k8s) Custom Images
+For a standard Kubernetes-based vCluster, specify the custom images for the Kubernetes API server, scheduler, controller manager, and etcd in your Helm values file:
+
+```shell
+# k8s-values.yaml
+api:
+  image: registry.k8s.io/kube-apiserver:v1.29.0
+scheduler:
+  image: registry.k8s.io/kube-scheduler:v1.29.0
+controller:
+  image: registry.k8s.io/kube-controller-manager:v1.29.0
+etcd:
+  image: registry.k8s.io/etcd:3.5.10-0
+```
+
+```shell
+export CHART_NAME=vcluster-k8s
+```
+
+## Applying Custom Image Configurations
+
+After setting up the respective values files, use the HELM_VALUES environment variable to pass these values when creating the vCluster instance:
+
+```shell
+export CLUSTER_NAME=test
+export CLUSTER_NAMESPACE=test
+export CHART_VERSION=0.19.0
+export HELM_VALUES=$(cat ./[distribution]-values.yaml | sed -z 's/\n/\\n/g')
+kubectl create namespace ${CLUSTER_NAMESPACE}
+cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
+```
+Replace [distribution] with eks, k0s, k3s, or k8s as per your requirement.
