@@ -101,11 +101,14 @@ var _ = ginkgo.Describe("e2e test", func() {
 		})
 
 		ginkgo.It("Deploys Workload to VirtualCluster successfully", func() {
+			ctx = context.TODO()
 			replicas := int32(2)
+			deploymentName := "example-deployment"
+			namespace := "default"
 			deployment := &appsv1.Deployment{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "example-deployment",
-					Namespace: "default",
+					Name:      deploymentName,
+					Namespace: namespace,
 				},
 				Spec: appsv1.DeploymentSpec{
 					Replicas: &replicas,
@@ -134,6 +137,27 @@ var _ = ginkgo.Describe("e2e test", func() {
 
 			_, err := vclusterClient.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			deployment, err = vclusterClient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+
+			// Wait for the pods of the deployment to be running
+			err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false, func(ctx context.Context) (bool, error) {
+				// Update the deployment status
+				updatedDeployment, err := vclusterClient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+				if err != nil {
+					return false, err
+				}
+
+				if updatedDeployment.Status.ReadyReplicas == *deployment.Spec.Replicas {
+					// All replicas are ready
+					return true, nil
+				}
+
+				return false, nil
+			})
+
+			gomega.Expect(err).NotTo(gomega.HaveOccurred(), "Timeout reached waiting for deployment pods to be running")
 		})
 
 		ginkgo.It("Scale Deployment successfully", func() {
