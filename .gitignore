@@ -23,6 +23,8 @@ testbin/*
 *.swp
 *.swo
 *~
+.DS_Store
+.envrc
 
 # release dir where infrastructure-components.yaml and other release artifacts will be created
 /release/
