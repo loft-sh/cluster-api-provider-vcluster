@@ -75,6 +75,13 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	var namespaces map[string]cache.Config
+	if namespace != "" {
+		namespaces = map[string]cache.Config{
+			namespace: {},
+		}
+	}
+
 	mgr, err := manager.New(ctrl.GetConfigOrDie(), manager.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -87,9 +94,7 @@ func main() {
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "4012c7fa.cluster.x-k8s.io",
 		Cache: cache.Options{
-			DefaultNamespaces: map[string]cache.Config{
-				namespace: {},
-			},
+			DefaultNamespaces: namespaces,
 		},
 	})
 	if err != nil {
