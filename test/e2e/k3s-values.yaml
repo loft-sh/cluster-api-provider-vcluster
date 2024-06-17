@@ -1,6 +1,10 @@
-# K3S
----
-service:
-  type: NodePort
-vcluster:
-  image: rancher/k3s:v1.29.0-k3s1
+controlPlane:
+  distro:
+    k3s:
+      enabled: true
+  service:
+    spec:
+      type: NodePort
+  statefulSet:
+    scheduling:
+      podManagementPolicy: OrderedReady

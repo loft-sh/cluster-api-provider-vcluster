@@ -63,7 +63,7 @@ jobs:
           sudo mv clusterctl /usr/local/bin/
 
           #Install Kind
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
 
@@ -82,7 +82,7 @@ jobs:
 
       - name: Create and Start Kind Cluster
         run: |
-          kind create cluster
+          kind create cluster --image=kindest/node:v1.28.9@sha256:dca54bc6a6079dd34699d53d7d4ffa2e853e46a20cd12d619a09207e35300bd0
           echo "=== cluster-info ==="
           kubectl cluster-info --context kind-kind
 
@@ -113,7 +113,7 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k3s
           export CLUSTER_NAMESPACE=vcluster-k3s
-          export CHART_VERSION=0.19.0
+          export CHART_VERSION=0.20.0-beta.9
           export HELM_VALUES=$(cat ./test/e2e/k3s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
@@ -129,8 +129,8 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k0s
           export CLUSTER_NAMESPACE=vcluster-k0s
-          export CHART_VERSION=0.19.0
-          export CHART_NAME=vcluster-k0s
+          export CHART_VERSION=0.20.0-beta.9
+          export CHART_NAME=vcluster
           export HELM_VALUES=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
@@ -146,8 +146,8 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k8s
           export CLUSTER_NAMESPACE=vcluster-k8s
-          export CHART_VERSION=0.19.0
-          export CHART_NAME=vcluster-k8s
+          export CHART_VERSION=0.20.0-beta.9
+          export CHART_NAME=vcluster
           export HELM_VALUES=$(cat ./test/e2e/k8s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
@@ -163,8 +163,8 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-eks
           export CLUSTER_NAMESPACE=vcluster-eks
-          export CHART_VERSION=0.19.0
-          export CHART_NAME=vcluster-eks
+          export CHART_VERSION=0.20.0-beta.9
+          export CHART_NAME=vcluster
           export HELM_VALUES=$(cat ./test/e2e/eks-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
