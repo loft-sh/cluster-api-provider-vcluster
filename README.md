@@ -25,7 +25,7 @@ In the example commands below, the HELM_VALUES variable will be populated with t
 ```shell
 export CLUSTER_NAME=vcluster
 export CLUSTER_NAMESPACE=vcluster
-export KUBERNETES_VERSION=1.26.1
+export KUBERNETES_VERSION=1.28.9
 export HELM_VALUES=""
 # Uncomment if you want to use vcluster values
 # export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
@@ -105,18 +105,18 @@ spec:
 
     chart: 
       # By default, the "https://charts.loft.sh" repo is used
-      repo: ${CHART_REPO:=null}
+      repo: ${CHART_REPO:=https://charts.loft.sh}
       # By default, the "vcluster" chart is used. This coresponds to the "k3s" distro of the
       # vcluster, and the "/charts/k3s" folder in the vcluster GitHub repo.
       # Other available options currently are: "vcluster-k8s", "vcluster-k0s" and "vcluster-eks".
-      name: ${CHART_NAME:=null}
+      name: ${CHART_NAME:=vcluster}
       # By default, a particular vcluster version is used in a given CAPVC release. You may find
       # it out from the source code, e.g.: 
       # https://github.com/loft-sh/cluster-api-provider-vcluster/blob/v0.1.3/pkg/constants/constants.go#L7
       #
       # Please refer to the vcluster Releases page for the list of the available versions:
       # https://github.com/loft-sh/vcluster/releases
-      version: ${CHART_VERSION:=null}
+      version: ${CHART_VERSION:=0.19.5}
 
   # controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
   # You may leave this field empty, and then CAPVC will try to fill in this information based
@@ -170,7 +170,7 @@ In the example commands below, the HELM_VALUES variable will be populated with t
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.19.0
+export CHART_VERSION=0.19.5
 export CHART_NAME=vcluster
 export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
 kubectl create namespace ${CLUSTER_NAMESPACE}
@@ -190,7 +190,7 @@ You can specify a custom version of the vCluster Helm chart by setting the CHART
 Example:
 
 ```shell
-export CHART_VERSION=0.19.0
+export CHART_VERSION=0.19.5
 ```
 
 ## Specifying Custom Images for Different Kubernetes Distributions in vCluster
@@ -269,7 +269,7 @@ After setting up the respective values files, use the HELM_VALUES environment va
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.19.0
+export CHART_VERSION=0.19.5
 export HELM_VALUES=$(cat ./[distribution]-values.yaml | sed -z 's/\n/\\n/g')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
