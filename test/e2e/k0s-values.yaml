@@ -1,6 +1,10 @@
-# K0S
----
-service:
-  type: NodePort
-vcluster:
-  image: k0sproject/k0s:v1.29.1-k0s.0
+controlPlane:
+  distro:
+    k0s:
+      enabled: true
+  service:
+    spec:
+      type: NodePort
+  statefulSet:
+    scheduling:
+      podManagementPolicy: OrderedReady
