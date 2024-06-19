@@ -19,7 +19,7 @@ Install the vcluster provider (latest stable release)
 clusterctl init --infrastructure vcluster
 ```
 
-or for the latest alpha release:
+or for the latest alpha release (which uses the v0.20 [vcluster.yaml](https://www.vcluster.com/docs/vcluster/configure/vcluster-yaml/) format per default):
 
 ```shell
 clusterctl init --infrastructure vcluster:v0.2.0-alpha.2
