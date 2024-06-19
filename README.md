@@ -13,10 +13,16 @@ Prerequisites:
 - A Kubernetes cluster where you will have cluster-admin permissions
 - Optional, depending on how you expose the vcluster instance - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
 
-Install the vcluster provider
+Install the vcluster provider (latest stable release)
 
 ```shell
 clusterctl init --infrastructure vcluster
+```
+
+or for the latest alpha release:
+
+```shell
+clusterctl init --infrastructure vcluster:v0.2.0-alpha.2
 ```
 
 Next you will generate a manifest file for a vcluster instance and create it in the management cluster.
