@@ -268,8 +268,17 @@ type MachineHealthCheckClass struct {
 	// +kubebuilder:validation:Pattern=^\[[0-9]+-[0-9]+\]$
 	UnhealthyRange *string `json:"unhealthyRange,omitempty"`
 
-	// Machines older than this duration without a node will be considered to have
-	// failed and will be remediated.
+	// NodeStartupTimeout allows to set the maximum time for MachineHealthCheck
+	// to consider a Machine unhealthy if a corresponding Node isn't associated
+	// through a `Spec.ProviderID` field.
+	//
+	// The duration set in this field is compared to the greatest of:
+	// - Cluster's infrastructure ready condition timestamp (if and when available)
+	// - Control Plane's initialized condition timestamp (if and when available)
+	// - Machine's infrastructure ready condition timestamp (if and when available)
+	// - Machine's metadata creation timestamp
+	//
+	// Defaults to 10 minutes.
 	// If you wish to disable this feature, set the value explicitly to 0.
 	// +optional
 	NodeStartupTimeout *metav1.Duration `json:"nodeStartupTimeout,omitempty"`
@@ -382,8 +391,30 @@ type ClusterClassVariable struct {
 	// required, this will be specified inside the schema.
 	Required bool `json:"required"`
 
+	// Metadata is the metadata of a variable.
+	// It can be used to add additional data for higher level tools to
+	// a ClusterClassVariable.
+	// +optional
+	Metadata ClusterClassVariableMetadata `json:"metadata,omitempty"`
+
 	// Schema defines the schema of the variable.
 	Schema VariableSchema `json:"schema"`
+}
+
+// ClusterClassVariableMetadata is the metadata of a variable.
+// It can be used to add additional data for higher level tools to
+// a ClusterClassVariable.
+type ClusterClassVariableMetadata struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) variables.
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations is an unstructured key value map that can be used to store and
+	// retrieve arbitrary metadata.
+	// They are not queryable.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // VariableSchema defines the schema of a variable.
@@ -732,6 +763,12 @@ type ClusterClassStatusVariableDefinition struct {
 	// top-level object defined in the schema. If nested fields are
 	// required, this will be specified inside the schema.
 	Required bool `json:"required"`
+
+	// Metadata is the metadata of a variable.
+	// It can be used to add additional data for higher level tools to
+	// a ClusterClassVariable.
+	// +optional
+	Metadata ClusterClassVariableMetadata `json:"metadata,omitempty"`
 
 	// Schema defines the schema of the variable.
 	Schema VariableSchema `json:"schema"`
