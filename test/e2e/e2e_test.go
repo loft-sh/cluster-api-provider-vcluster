@@ -9,7 +9,8 @@ import (
 
 	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/cmd/vclusterctl/cmd"
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/flags"
+	"github.com/loft-sh/vcluster/pkg/cli"
+	"github.com/loft-sh/vcluster/pkg/cli/flags"
 	logutil "github.com/loft-sh/vcluster/pkg/util/log"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -52,6 +53,7 @@ var _ = ginkgo.Describe("e2e test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			namespace := os.Getenv("NAMESPACE")
+			name := os.Getenv("CLUSTER_NAME")
 			localPort, err := strconv.Atoi(os.Getenv("LOCAL_PORT"))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			connectCmd := cmd.ConnectCmd{
@@ -60,10 +62,13 @@ var _ = ginkgo.Describe("e2e test", func() {
 					Namespace: namespace,
 					Debug:     true,
 				},
-				KubeConfig: vKubeconfigFile.Name(),
-				LocalPort:  localPort, // choosing a port that usually should be unused
+				ConnectOptions: cli.ConnectOptions{
+					UpdateCurrent: false,
+					KubeConfig:    vKubeconfigFile.Name(),
+					LocalPort:     localPort, // choosing a port that usually should be unused
+				},
 			}
-			err = connectCmd.Connect(ctx, nil, namespace, nil)
+			err = cli.ConnectHelm(ctx, &connectCmd.ConnectOptions, connectCmd.GlobalFlags, name, nil, connectCmd.Log)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = wait.PollUntilContextTimeout(ctx, time.Second, time.Minute, false, func(ctx context.Context) (bool, error) {
