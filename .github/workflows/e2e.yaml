@@ -123,7 +123,7 @@ jobs:
           kubectl wait --for=condition=ready vcluster -n vcluster-k3s vcluster-k3s --timeout=100s
 
       - name: Run E2E Tests K3S
-        run: NAMESPACE=vcluster-k3s LOCAL_PORT=14550 go test -mod=vendor ./test/e2e -v
+        run: CLUSTER_NAME=vcluster-k3s NAMESPACE=vcluster-k3s LOCAL_PORT=14550 go test -mod=vendor ./test/e2e -v
 
       - name: Create Vcluster Custom Resource K0S
         run: |
@@ -140,7 +140,7 @@ jobs:
           kubectl wait --for=condition=ready vcluster -n vcluster-k0s vcluster-k0s --timeout=100s
 
       - name: Run E2E Tests K0S
-        run: NAMESPACE=vcluster-k0s LOCAL_PORT=14551 go test -mod=vendor ./test/e2e -v
+        run: CLUSTER_NAME=vcluster-k0s NAMESPACE=vcluster-k0s LOCAL_PORT=14551 go test -mod=vendor ./test/e2e -v
 
       - name: Create Vcluster Custom Resource K8S
         run: |
@@ -157,7 +157,7 @@ jobs:
           kubectl wait --for=condition=ready vcluster -n vcluster-k8s vcluster-k8s --timeout=100s
 
       - name: Run E2E Tests K8S
-        run: NAMESPACE=vcluster-k8s LOCAL_PORT=14552 go test -mod=vendor ./test/e2e -v
+        run: CLUSTER_NAME=vcluster-k8s NAMESPACE=vcluster-k8s LOCAL_PORT=14552 go test -mod=vendor ./test/e2e -v
 
       - name: Create Vcluster Custom Resource EKS
         run: |
@@ -174,4 +174,4 @@ jobs:
           kubectl wait --for=condition=ready vcluster -n vcluster-eks vcluster-eks --timeout=100s
 
       - name: Run E2E Tests EKS
-        run: NAMESPACE=vcluster-eks LOCAL_PORT=14553 go test -mod=vendor ./test/e2e -v
+        run: CLUSTER_NAME=vcluster-eks NAMESPACE=vcluster-eks LOCAL_PORT=14553 go test -mod=vendor ./test/e2e -v
