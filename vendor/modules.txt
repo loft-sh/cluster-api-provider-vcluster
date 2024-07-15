@@ -758,7 +758,7 @@ github.com/loft-sh/vcluster/pkg/util/portforward
 github.com/loft-sh/vcluster/pkg/util/servicecidr
 github.com/loft-sh/vcluster/pkg/util/stringutil
 github.com/loft-sh/vcluster/pkg/util/translate
-# github.com/loft-sh/vcluster-values v0.0.0-20240207093538-4bbb24e9f699
+# github.com/loft-sh/vcluster-values v0.0.0-20240618120001-334c9c814bc7
 ## explicit; go 1.21.5
 github.com/loft-sh/vcluster-values/values
 # github.com/lufeee/execinquery v1.2.1
