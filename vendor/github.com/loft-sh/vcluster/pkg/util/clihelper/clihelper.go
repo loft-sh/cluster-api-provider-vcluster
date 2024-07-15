@@ -2,6 +2,7 @@ package clihelper
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net"
 	"sort"
@@ -9,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	loftkubeconfig "github.com/loft-sh/loftctl/v3/pkg/kubeconfig"
 	"github.com/loft-sh/log"
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/cmd/app/podprinter"
-	"github.com/loft-sh/vcluster/cmd/vclusterctl/cmd/find"
-	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
+	"github.com/loft-sh/vcluster/pkg/cli/find"
+	"github.com/loft-sh/vcluster/pkg/cli/podprinter"
+	utilkubeconfig "github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	"github.com/pkg/errors"
+	"golang.org/x/mod/semver"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -22,6 +23,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
+
+const MinHelmVersion = "v3.10.0"
 
 // CriticalStatus container status
 var CriticalStatus = map[string]bool{
@@ -37,40 +40,6 @@ var CriticalStatus = map[string]bool{
 
 var SortPodsByNewest = func(pods []corev1.Pod, i, j int) bool {
 	return pods[i].CreationTimestamp.Unix() > pods[j].CreationTimestamp.Unix()
-}
-
-// GetProKubeConfig builds a pro kube config from options and client
-func GetProKubeConfig(options loftkubeconfig.ContextOptions) (*clientcmdapi.Config, error) {
-	contextName := options.Name
-	cluster := clientcmdapi.NewCluster()
-	cluster.Server = options.Server
-	cluster.CertificateAuthorityData = options.CaData
-	cluster.InsecureSkipTLSVerify = options.InsecureSkipTLSVerify
-
-	authInfo := clientcmdapi.NewAuthInfo()
-	if options.Token != "" || options.ClientCertificateData != nil || options.ClientKeyData != nil {
-		authInfo.Token = options.Token
-		authInfo.ClientKeyData = options.ClientKeyData
-		authInfo.ClientCertificateData = options.ClientCertificateData
-	}
-
-	config := clientcmdapi.NewConfig()
-	config.Clusters[contextName] = cluster
-	config.AuthInfos[contextName] = authInfo
-
-	// Update kube context
-	kubeContext := clientcmdapi.NewContext()
-	kubeContext.Cluster = contextName
-	kubeContext.AuthInfo = contextName
-	kubeContext.Namespace = options.CurrentNamespace
-
-	config.Contexts[contextName] = kubeContext
-	config.CurrentContext = contextName
-
-	// set kind & version
-	config.APIVersion = "v1"
-	config.Kind = "Config"
-	return config, nil
 }
 
 // GetKubeConfig attempts to read the kubeconfig from the default Secret and
@@ -115,13 +84,8 @@ func GetKubeConfig(ctx context.Context, kubeClient *kubernetes.Clientset, vclust
 			}
 		}
 
-		kubeConfig, err = kubeconfig.ReadKubeConfig(ctx, kubeClient, vclusterName, namespace)
+		kubeConfig, err = utilkubeconfig.ReadKubeConfig(ctx, kubeClient, vclusterName, namespace)
 		if err != nil {
-			if !printedWaiting {
-				log.Infof("Waiting for vcluster to come up...")
-				printedWaiting = true
-			}
-
 			return false, nil
 		}
 		return true, nil
@@ -149,8 +113,8 @@ func HasPodProblem(pod *corev1.Pod) bool {
 }
 
 func CheckHelmVersion(output string) error {
-	if !(strings.Contains(output, "Version:\"v3.")) {
-		return errors.New("Please ensure that the \"helm\" binary in your PATH is valid. Only Helm v3 is supported")
+	if semver.Compare(output, MinHelmVersion) == -1 {
+		return fmt.Errorf("please ensure that the \"helm\" binary in your PATH is valid. Currently only Helm >= %s is supported", MinHelmVersion)
 	}
 
 	return nil
