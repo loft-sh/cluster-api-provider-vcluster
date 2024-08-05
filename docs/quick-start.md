@@ -62,7 +62,7 @@ Next we will create our virtual cluster within our `kind` cluster.
 ```shell
 export CLUSTER_NAME=kind
 export CLUSTER_NAMESPACE=vcluster
-export HELM_VALUES=""
+export VCLUSTER_YAML=""
 
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \

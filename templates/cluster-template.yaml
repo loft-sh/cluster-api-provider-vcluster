@@ -18,7 +18,7 @@ metadata:
   name: ${CLUSTER_NAME}
 spec:
   helmRelease:
-    values: "${HELM_VALUES:=}"
+    values: "${VCLUSTER_YAML:=}"
     chart: 
       name: ${CHART_NAME:=vcluster}
       repo: ${CHART_REPO:=https://charts.loft.sh}

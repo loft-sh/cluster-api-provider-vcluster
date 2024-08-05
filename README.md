@@ -21,13 +21,13 @@ clusterctl init --infrastructure vcluster
 
 Next you will generate a manifest file for a vcluster instance and create it in the management cluster.
 Cluster instance is configured using clusterctl parameters and environment variables - CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT.
-In the example commands below, the HELM_VALUES variable will be populated with the contents of the `values.yaml` file.
+In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `values.yaml` file.
 ```shell
 export CLUSTER_NAME=vcluster
 export CLUSTER_NAMESPACE=vcluster
-export HELM_VALUES=""
+export VCLUSTER_YAML=""
 # Uncomment if you want to use vcluster values
-# export HELM_VALUES=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
+# export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \
     --infrastructure vcluster \
@@ -161,13 +161,13 @@ go run -mod vendor main.go
 
 Next, in a separate terminal you will generate a manifest file for a vcluster instance.
 Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CHART_VERSION and CLUSTER_NAME variables are mandatory.
-In the example commands below, the HELM_VALUES variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export HELM_VALUES...` command when the `devvalues.yaml` changes.
+In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export VCLUSTER_YAML...` command when the `devvalues.yaml` changes.
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
 export CHART_VERSION=0.20.0
 export CHART_NAME=vcluster
-export HELM_VALUES=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
+export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 ```
@@ -192,7 +192,7 @@ export CHART_VERSION=0.20.0
 
 ## Specifying custom values for virtual clusters
 
-Depending on your needs, you might want to let CAPVC create a virtual cluster accordingly by e.g. settings those values in a corresponding file that is fed to the `HELM_VALUES` environment variable.
+Depending on your needs, you might want to let CAPVC create a virtual cluster accordingly by e.g. settings those values in a corresponding file that is fed to the `VCLUSTER_YAML` environment variable.
 
 Example:
 
@@ -208,7 +208,7 @@ controlPlane:
         enabled: true
 EOF
 
-export HELM_VALUES=$(cat /tmp/values.yaml | awk '{printf "%s\\n", $0}')
+export VCLUSTER_YAML=$(cat /tmp/values.yaml | awk '{printf "%s\\n", $0}')
 ```
 
 For all possible values please see the [official docs](https://www.vcluster.com/docs/vcluster/configure/vcluster-yaml/).
