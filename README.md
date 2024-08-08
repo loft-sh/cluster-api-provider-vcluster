@@ -8,37 +8,29 @@ This is a [Cluster API](https://cluster-api.sigs.k8s.io/introduction.html) provi
 # Installation instructions
 
 Prerequisites:
-- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) (v1.1.5+)
+- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) (v1.7.4+)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - A Kubernetes cluster where you will have cluster-admin permissions
 - Optional, depending on how you expose the vcluster instance - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
 
-Install the vcluster provider (latest stable release)
+Install the vcluster provider
 
 ```shell
 clusterctl init --infrastructure vcluster
 ```
 
-or for the latest alpha release (which uses the v0.20 [vcluster.yaml](https://www.vcluster.com/docs/vcluster/configure/vcluster-yaml/) format per default):
-
-```shell
-clusterctl init --infrastructure vcluster:v0.2.0-alpha.2
-```
-
 Next you will generate a manifest file for a vcluster instance and create it in the management cluster.
 Cluster instance is configured using clusterctl parameters and environment variables - CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT.
-In the example commands below, the HELM_VALUES variable will be populated with the contents of the `values.yaml` file.
+In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `values.yaml` file.
 ```shell
 export CLUSTER_NAME=vcluster
 export CLUSTER_NAMESPACE=vcluster
-export KUBERNETES_VERSION=1.28.9
-export HELM_VALUES=""
+export VCLUSTER_YAML=""
 # Uncomment if you want to use vcluster values
-# export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
+# export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 clusterctl generate cluster ${CLUSTER_NAME} \
     --infrastructure vcluster \
-    --kubernetes-version ${KUBERNETES_VERSION} \
     --target-namespace ${CLUSTER_NAMESPACE} | kubectl apply -f -
 ```
 
@@ -51,7 +43,7 @@ At this point the cluster is ready to be used. Please refer to the next chapter 
 **Note**: at the moment, the provider is able to host vclusters only in the cluster where the vcluster provider is running([management cluster](https://cluster-api.sigs.k8s.io/user/concepts.html#management-cluster)). Support for the remote host clusters is on our roadmap - [loft-sh/cluster-api-provider-vcluster#6](https://github.com/loft-sh/cluster-api-provider-vcluster/issues/6).
 
 # How to connect to your vcluster
-There are multiple methods for exposing your vcluster instance, and they are described in the [vcluster docs](https://www.vcluster.com/docs/operator/external-access). If you follow the docs exactly, you will need to use the vcluster CLI to retrieve kubeconfig. When using this CAPI provider you have an alternative - `clusterctl get kubeconfig ${CLUSTER_NAME} --namespace ${CLUSTER_NAMESPACE} > ./kubeconfig.yaml`, more details about this are in the [CAPI docs](https://cluster-api.sigs.k8s.io/clusterctl/commands/get-kubeconfig.html). Virtual cluster kube config will be written to: ./kubeconfig.yaml. You can access the cluster via `kubectl --kubeconfig ./kubeconfig.yaml get namespaces`.
+There are multiple methods for exposing your vcluster instance, and they are described in the [vcluster docs](https://www.vcluster.com/docs/operator/external-access). If you follow the docs exactly, you will need to use the vcluster CLI to retrieve kubeconfig. When using this CAPI provider you have an alternative - `clusterctl get kubeconfig ${CLUSTER_NAME} --namespace ${CLUSTER_NAMESPACE} > ./kubeconfig.yaml`, more details about this are in the [CAPI docs](https://cluster-api.sigs.k8s.io/clusterctl/commands/get-kubeconfig.html). You can access the cluster via `kubectl --kubeconfig ./kubeconfig.yaml get namespaces`.
 
 However, if you are not exposing the vcluster instance with an external hostname, but you want to connect to it from outside the cluster, you will need to use the [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup):
 ```shell
@@ -86,13 +78,6 @@ kind: VCluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
-  # Kubernetes version that should be used in this vcluster instance, e.g. "1.23".
-  # The patch number from the version will be ignored, and the latest supported one
-  # by the used chart will be installed.
-  # Versions out of the supported range will be ignored, and earliest/latest supported
-  # version will be used instead.
-  kubernetesVersion: "1.24"
-
   # We are using vcluster Helm charts for the installation and upgrade.
   # The helmRelease sub-fields allow you to set Helm values and chart repo, name and version.
   # Sources of the charts can be found here - https://github.com/loft-sh/vcluster/tree/main/charts 
@@ -104,10 +89,14 @@ spec:
     # Please refer to vcluster documentation for the extensive explanation of the features,
     # and the appropriate Helm values that need to be set for your use case - https://www.vcluster.com/docs
     values: |-
-      # example:
-      # syncer:
-      #   extraArgs:
-      #   - --tls-san=myvcluster.mydns.abc
+      # controlPlane:
+      #   distro:
+      #     k8s:
+      #       enabled: true
+      #   backingStore:
+      #     etcd:
+      #       deploy:
+      #         enabled: true
 
     chart: 
       # By default, the "https://charts.loft.sh" repo is used
@@ -122,7 +111,7 @@ spec:
       #
       # Please refer to the vcluster Releases page for the list of the available versions:
       # https://github.com/loft-sh/vcluster/releases
-      version: ${CHART_VERSION:=0.19.5}
+      version: ${CHART_VERSION:=0.20.0}
 
   # controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
   # You may leave this field empty, and then CAPVC will try to fill in this information based
@@ -172,13 +161,13 @@ go run -mod vendor main.go
 
 Next, in a separate terminal you will generate a manifest file for a vcluster instance.
 Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CHART_VERSION and CLUSTER_NAME variables are mandatory.
-In the example commands below, the HELM_VALUES variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export HELM_VALUES...` command when the `devvalues.yaml` changes.
+In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export VCLUSTER_YAML...` command when the `devvalues.yaml` changes.
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.19.5
+export CHART_VERSION=0.20.0
 export CHART_NAME=vcluster
-export HELM_VALUES=$(cat devvalues.yaml | sed -z 's/\n/\\n/g')
+export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
 cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 ```
@@ -189,95 +178,37 @@ kubectl wait --for=condition=ready vcluster -n $CLUSTER_NAMESPACE $CLUSTER_NAME 
 ```
 At this point the cluster is ready to be used. Please refer to "How to connect to your vcluster" chapter above to get the credentials.
 
-# Specifying Custom vCluster Helm Versions
+# Customizing Helm related values
+
+## Specifiying Chart related values
 
 You can specify a custom version of the vCluster Helm chart by setting the CHART_VERSION environment variable. This allows you to pin the vCluster installation to a specific version of the Helm chart.
 
 Example:
 
 ```shell
-export CHART_VERSION=0.19.5
+export CHART_VERSION=0.20.0
 ```
 
-## Specifying Custom Images for Different Kubernetes Distributions in vCluster
+## Specifying custom values for virtual clusters
 
-Depending on your needs, you might want to use specific versions of Kubernetes distributions and their components in your vCluster. Here's how you can specify custom images for EKS, k0s, k3s, and standard Kubernetes (k8s).
+Depending on your needs, you might want to let CAPVC create a virtual cluster accordingly by e.g. settings those values in a corresponding file that is fed to the `VCLUSTER_YAML` environment variable.
 
-## EKS Custom Images
-
-For an EKS-based vCluster, specify the custom images for the Kubernetes API server, controller manager, etcd, and CoreDNS in your Helm values file:
+Example:
 
 ```shell
-# eks-values.yaml
-api:
-  image: public.ecr.aws/eks-distro/kubernetes/kube-apiserver:v1.28.2-eks-1-28-6
-controller:
-  image: public.ecr.aws/eks-distro/kubernetes/kube-controller-manager:v1.28.2-eks-1-28-6
-etcd:
-  image: public.ecr.aws/eks-distro/etcd-io/etcd:v3.5.9-eks-1-28-6
-coredns:
-  image: public.ecr.aws/eks-distro/coredns/coredns:v1.10.1-eks-1-28-6
+cat > /tmp/values.yaml <<EOF
+controlPlane:
+  distro:
+    k8s:
+      enabled: true
+  backingStore:
+    etcd:
+      deploy:
+        enabled: true
+EOF
+
+export VCLUSTER_YAML=$(cat /tmp/values.yaml | awk '{printf "%s\\n", $0}')
 ```
 
-```shell
-export CHART_NAME=vcluster-eks
-```
-
-### k0s Custom Images
-For a k0s-based vCluster, specify the custom vCluster image in your Helm values file:
-
-```shell
-# k0s-values.yaml
-vcluster:
-  image: k0sproject/k0s:v1.29.1-k0s.0
-```
-
-```shell
-export CHART_NAME=vcluster-k0s
-```
-
-### k3s Custom Images
-For a k3s-based vCluster, specify the custom vCluster image in your Helm values file:
-
-```shell
-# k3s-values.yaml
-vcluster:
-  image: rancher/k3s:v1.29.0-k3s1
-```
-
-```shell
-export CHART_NAME=vcluster
-```
-
-### Standard Kubernetes (k8s) Custom Images
-For a standard Kubernetes-based vCluster, specify the custom images for the Kubernetes API server, scheduler, controller manager, and etcd in your Helm values file:
-
-```shell
-# k8s-values.yaml
-api:
-  image: registry.k8s.io/kube-apiserver:v1.29.0
-scheduler:
-  image: registry.k8s.io/kube-scheduler:v1.29.0
-controller:
-  image: registry.k8s.io/kube-controller-manager:v1.29.0
-etcd:
-  image: registry.k8s.io/etcd:3.5.10-0
-```
-
-```shell
-export CHART_NAME=vcluster-k8s
-```
-
-## Applying Custom Image Configurations
-
-After setting up the respective values files, use the HELM_VALUES environment variable to pass these values when creating the vCluster instance:
-
-```shell
-export CLUSTER_NAME=test
-export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.19.5
-export HELM_VALUES=$(cat ./[distribution]-values.yaml | sed -z 's/\n/\\n/g')
-kubectl create namespace ${CLUSTER_NAMESPACE}
-cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
-```
-Replace [distribution] with eks, k0s, k3s, or k8s as per your requirement.
+For all possible values please see the [official docs](https://www.vcluster.com/docs/vcluster/configure/vcluster-yaml/).

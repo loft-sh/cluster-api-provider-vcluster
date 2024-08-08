@@ -114,7 +114,7 @@ jobs:
           export CLUSTER_NAME=vcluster-k3s
           export CLUSTER_NAMESPACE=vcluster-k3s
           export CHART_VERSION=0.20.0-beta.12
-          export HELM_VALUES=$(cat ./test/e2e/k3s-values.yaml | sed -z 's/\n/\\n/g')
+          export VCLUSTER_YAML=$(cat ./test/e2e/k3s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 
@@ -131,7 +131,7 @@ jobs:
           export CLUSTER_NAMESPACE=vcluster-k0s
           export CHART_VERSION=0.20.0-beta.12
           export CHART_NAME=vcluster
-          export HELM_VALUES=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
+          export VCLUSTER_YAML=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 
@@ -148,7 +148,7 @@ jobs:
           export CLUSTER_NAMESPACE=vcluster-k8s
           export CHART_VERSION=0.20.0-beta.12
           export CHART_NAME=vcluster
-          export HELM_VALUES=$(cat ./test/e2e/k8s-values.yaml | sed -z 's/\n/\\n/g')
+          export VCLUSTER_YAML=$(cat ./test/e2e/k8s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 
@@ -165,7 +165,7 @@ jobs:
           export CLUSTER_NAMESPACE=vcluster-eks
           export CHART_VERSION=0.20.0-beta.12
           export CHART_NAME=vcluster
-          export HELM_VALUES=$(cat ./test/e2e/eks-values.yaml | sed -z 's/\n/\\n/g')
+          export VCLUSTER_YAML=$(cat ./test/e2e/eks-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
 
