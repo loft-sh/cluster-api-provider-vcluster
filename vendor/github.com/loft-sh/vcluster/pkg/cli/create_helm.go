@@ -89,7 +89,7 @@ type CreateOptions struct {
 
 var CreatedByVClusterAnnotation = "vcluster.loft.sh/created"
 
-var AllowedDistros = []string{config.K8SDistro, config.K3SDistro, config.K0SDistro, config.EKSDistro}
+var AllowedDistros = []string{config.K8SDistro, config.K3SDistro, config.K0SDistro}
 
 type createHelm struct {
 	*flags.GlobalFlags
@@ -268,7 +268,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 		cmd.Connect = false
 	}
 
-	if isSleepModeConfigured(vClusterConfig) {
+	if vClusterConfig.IsConfiguredForSleepMode() {
 		if agentDeployed, err := cmd.isLoftAgentDeployed(ctx); err != nil {
 			return fmt.Errorf("is agent deployed: %w", err)
 		} else if !agentDeployed {
@@ -276,7 +276,13 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 		}
 	}
 
+	err = validateHABackingStoreCompatibility(vClusterConfig)
+	if err != nil {
+		return err
+	}
+	verb := "created"
 	if isVClusterDeployed(release) {
+		verb = "upgraded"
 		// While certain backing store changes are allowed we prohibit changes to another distro.
 		if err := config.ValidateChanges(currentVClusterConfig, vClusterConfig); err != nil {
 			return err
@@ -299,7 +305,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 
 	// check if we should connect to the vcluster or print the kubeconfig
 	if cmd.Connect || cmd.Print {
-		cmd.log.Donef("Successfully created virtual cluster %s in namespace %s", vClusterName, cmd.Namespace)
+		cmd.log.Donef("Successfully %s virtual cluster %s in namespace %s", verb, vClusterName, cmd.Namespace)
 		return ConnectHelm(ctx, &ConnectOptions{
 			BackgroundProxy:       cmd.BackgroundProxy,
 			UpdateCurrent:         cmd.UpdateCurrent,
@@ -310,9 +316,18 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 	}
 
 	if cmd.localCluster {
-		cmd.log.Donef("Successfully created virtual cluster %s in namespace %s. \n- Use 'vcluster connect %s --namespace %s' to access the virtual cluster", vClusterName, cmd.Namespace, vClusterName, cmd.Namespace)
+		cmd.log.Donef(
+			"Successfully %s virtual cluster %s in namespace %s. \n"+
+				"- Use 'vcluster connect %s --namespace %s' to access the virtual cluster",
+			verb, vClusterName, cmd.Namespace, vClusterName, cmd.Namespace,
+		)
 	} else {
-		cmd.log.Donef("Successfully created virtual cluster %s in namespace %s. \n- Use 'vcluster connect %s --namespace %s' to access the virtual cluster\n- Use `vcluster connect %s --namespace %s -- kubectl get ns` to run a command directly within the vcluster", vClusterName, cmd.Namespace, vClusterName, cmd.Namespace, vClusterName, cmd.Namespace)
+		cmd.log.Donef(
+			"Successfully %s virtual cluster %s in namespace %s. \n"+
+				"- Use 'vcluster connect %s --namespace %s' to access the virtual cluster\n"+
+				"- Use `vcluster connect %s --namespace %s -- kubectl get ns` to run a command directly within the vcluster",
+			verb, vClusterName, cmd.Namespace, vClusterName, cmd.Namespace, vClusterName, cmd.Namespace,
+		)
 	}
 
 	return nil
@@ -337,7 +352,7 @@ func (cmd *createHelm) parseVClusterYAML(chartValues string) (*config.Config, er
 		// We cannot discriminate between k0s/k3s and eks/k8s. So we cannot prompt the actual values to convert, as this would cause false positives,
 		// because users are free to e.g. pass a k0s values file to a currently running k3s virtual cluster.
 		if isLegacyConfig([]byte(oldValues)) {
-			return nil, fmt.Errorf("it appears you are using a vCluster configuration using pre-v0.20 formatting. Please run %q to convert the values to the latest format", "vcluster convert config")
+			return nil, fmt.Errorf("it appears you are using a vCluster configuration using pre-v0.20 formatting. Please run %q to convert the values to the latest format", "vcluster convert config --distro <distro> -f /path/to/vcluster.yaml")
 		}
 
 		// TODO end
@@ -384,13 +399,6 @@ func (cmd *createHelm) isLoftAgentDeployed(ctx context.Context) (bool, error) {
 	return len(podList.Items) > 0, nil
 }
 
-func isSleepModeConfigured(vClusterConfig *config.Config) bool {
-	if vClusterConfig == nil || vClusterConfig.External == nil || vClusterConfig.External["platform"] == nil {
-		return false
-	}
-	return vClusterConfig.External["platform"]["autoSleep"] != nil || vClusterConfig.External["platform"]["autoDelete"] != nil
-}
-
 func isVClusterDeployed(release *helm.Release) bool {
 	return release != nil &&
 		release.Chart != nil &&
@@ -408,6 +416,16 @@ func isLegacyVCluster(version string) bool {
 		return false
 	}
 	return semver.Compare("v"+version, "v0.20.0-alpha.0") == -1
+}
+
+func validateHABackingStoreCompatibility(config *config.Config) error {
+	if !config.EmbeddedDatabase() {
+		return nil
+	}
+	if !(config.ControlPlane.StatefulSet.HighAvailability.Replicas > 1) {
+		return nil
+	}
+	return fmt.Errorf("cannot use default embedded database (sqlite) in high availability mode. Try embedded etcd backing store instead")
 }
 
 func isLegacyConfig(values []byte) bool {

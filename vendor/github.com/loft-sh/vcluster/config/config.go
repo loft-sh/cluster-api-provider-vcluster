@@ -87,11 +87,32 @@ type MetricsServer struct {
 	// Enabled signals the metrics server integration should be enabled.
 	Enabled bool `json:"enabled,omitempty"`
 
+	// APIService holds information about where to find the metrics-server service. Defaults to metrics-server/kube-system.
+	APIService APIService `json:"apiService,omitempty"`
+
 	// Nodes defines if metrics-server nodes api should get proxied from host to virtual cluster.
 	Nodes bool `json:"nodes,omitempty"`
 
 	// Pods defines if metrics-server pods api should get proxied from host to virtual cluster.
 	Pods bool `json:"pods,omitempty"`
+}
+
+// APIService holds configuration related to the api server
+type APIService struct {
+	// Service is a reference to the service for the API server.
+	Service APIServiceService `json:"service,omitempty"`
+}
+
+// APIServiceService holds the service name and namespace of the host apiservice.
+type APIServiceService struct {
+	// Name is the name of the host service of the apiservice.
+	Name string `json:"name,omitempty"`
+
+	// Namespace is the name of the host service of the apiservice.
+	Namespace string `json:"namespace,omitempty"`
+
+	// Port is the target port on the host service to connect to.
+	Port int `json:"port,omitempty"`
 }
 
 // ExternalConfig holds external tool configuration
@@ -157,6 +178,10 @@ func (c *Config) BackingStoreType() StoreType {
 	}
 }
 
+func (c *Config) EmbeddedDatabase() bool {
+	return !c.ControlPlane.BackingStore.Database.External.Enabled && !c.ControlPlane.BackingStore.Etcd.Embedded.Enabled && !c.ControlPlane.BackingStore.Etcd.Deploy.Enabled
+}
+
 func (c *Config) Distro() string {
 	if c.ControlPlane.Distro.K3S.Enabled {
 		return K3SDistro
@@ -164,11 +189,17 @@ func (c *Config) Distro() string {
 		return K0SDistro
 	} else if c.ControlPlane.Distro.K8S.Enabled {
 		return K8SDistro
-	} else if c.ControlPlane.Distro.EKS.Enabled {
-		return EKSDistro
 	}
 
 	return K8SDistro
+}
+
+func (c *Config) IsConfiguredForSleepMode() bool {
+	if c != nil && c.External != nil && c.External["platform"] == nil {
+		return false
+	}
+
+	return c.External["platform"]["autoSleep"] != nil || c.External["platform"]["autoDelete"] != nil
 }
 
 // ValidateChanges checks for disallowed config changes.
@@ -182,7 +213,7 @@ func ValidateChanges(oldCfg, newCfg *Config) error {
 
 // ValidateStoreAndDistroChanges checks whether migrating from one store to the other is allowed.
 func ValidateStoreAndDistroChanges(currentStoreType, previousStoreType StoreType, currentDistro, previousDistro string) error {
-	if currentDistro != previousDistro {
+	if currentDistro != previousDistro && !(previousDistro == "eks" && currentDistro == K8SDistro) {
 		return fmt.Errorf("seems like you were using %s as a distro before and now have switched to %s, please make sure to not switch between vCluster distros", previousDistro, currentDistro)
 	}
 
@@ -207,7 +238,7 @@ func (c *Config) IsProFeatureEnabled() bool {
 		return true
 	}
 
-	if c.Distro() == K8SDistro || c.Distro() == EKSDistro {
+	if c.Distro() == K8SDistro {
 		if c.ControlPlane.BackingStore.Database.External.Enabled {
 			return true
 		}
@@ -702,9 +733,6 @@ type Distro struct {
 
 	// K0S holds k0s relevant configuration.
 	K0S DistroK0s `json:"k0s,omitempty"`
-
-	// EKS holds eks relevant configuration.
-	EKS DistroK8s `json:"eks,omitempty"`
 }
 
 type DistroK3s struct {
@@ -721,6 +749,18 @@ type DistroK3s struct {
 type DistroK8s struct {
 	// Enabled specifies if the K8s distro should be enabled. Only one distro can be enabled at the same time.
 	Enabled bool `json:"enabled,omitempty"`
+
+	// Version specifies k8s components (scheduler, kube-controller-manager & apiserver) version.
+	// It is a shortcut for controlPlane.distro.k8s.apiServer.image.tag,
+	// controlPlane.distro.k8s.controllerManager.image.tag and
+	// controlPlane.distro.k8s.scheduler.image.tag
+	// If e.g. controlPlane.distro.k8s.version is set to v1.30.1 and
+	// controlPlane.distro.k8s.scheduler.image.tag
+	//(or controlPlane.distro.k8s.controllerManager.image.tag or controlPlane.distro.k8s.apiServer.image.tag)
+	// is set to v1.31.0,
+	// value from controlPlane.distro.k8s.<controlPlane-component>.image.tag will be used
+	// (where <controlPlane-component is apiServer, controllerManager and scheduler).
+	Version string `json:"version,omitempty"`
 
 	// APIServer holds configuration specific to starting the api server.
 	APIServer DistroContainerEnabled `json:"apiServer,omitempty"`
@@ -1166,6 +1206,9 @@ type ControlPlanePersistence struct {
 	// VolumeClaimTemplates defines the volumeClaimTemplates for the statefulSet
 	VolumeClaimTemplates []map[string]interface{} `json:"volumeClaimTemplates,omitempty"`
 
+	// Allows you to override the dataVolume. Only works correctly if volumeClaim.enabled=false.
+	DataVolume []map[string]interface{} `json:"dataVolume,omitempty"`
+
 	// BinariesVolume defines a binaries volume that is used to retrieve
 	// distro specific executables to be run by the syncer controller.
 	// This volume doesn't need to be persistent.
@@ -1392,6 +1435,9 @@ type OutgoingConnections struct {
 	// to the pods matched by a NetworkPolicySpec's podSelector. The except entry describes CIDRs
 	// that should not be included within this rule.
 	IPBlock IPBlock `json:"ipBlock,omitempty"`
+
+	// Platform enables egress access towards loft platform
+	Platform bool `json:"platform,omitempty"`
 }
 
 type IPBlock struct {
@@ -1743,7 +1789,6 @@ type ExperimentalDeployHelmChart struct {
 
 type PlatformConfig struct {
 	// APIKey defines where to find the platform access key and host. By default, vCluster will search in the following locations in this precedence:
-	// * platform.api.accessKey
 	// * environment variable called LICENSE
 	// * secret specified under external.platform.apiKey.secretName
 	// * secret called "vcluster-platform-api-key" in the vCluster namespace
@@ -1758,6 +1803,11 @@ type PlatformAPIKey struct {
 	// Namespace defines the namespace where the access key secret should be retrieved from. If this is not equal to the namespace
 	// where the vCluster instance is deployed, you need to make sure vCluster has access to this other namespace.
 	Namespace string `json:"namespace,omitempty"`
+
+	// CreateRBAC will automatically create the necessary RBAC roles and role bindings to allow vCluster to read the secret specified
+	// in the above namespace, if specified.
+	// This defaults to true.
+	CreateRBAC *bool `json:"createRBAC,omitempty"`
 }
 
 type ExperimentalGenericSync struct {
