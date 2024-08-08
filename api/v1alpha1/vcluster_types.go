@@ -87,6 +87,19 @@ type VirtualClusterHelmRelease struct {
 	// +optional
 	Chart VirtualClusterHelmChart `json:"chart,omitempty"`
 
+	// KubernetesVersion specifies the version of the control plane components (kube-apiserver, kube-controller-manager & kube-scheulder).
+	// This only applies when the k8s distro is enabled inside the provided vcluster.yaml via `controlPlane.distro.k8s.enabled`.
+	// It is a shortcut for controlPlane.distro.k8s.apiServer.image.tag,
+	// controlPlane.distro.k8s.controllerManager.image.tag and
+	// controlPlane.distro.k8s.scheduler.image.tag
+	// If e.g. controlPlane.distro.k8s.version is set to v1.30.1 and
+	// controlPlane.distro.k8s.scheduler.image.tag
+	// (or controlPlane.distro.k8s.controllerManager.image.tag or controlPlane.distro.k8s.apiServer.image.tag)
+	// is set to v1.31.0,
+	// value from controlPlane.distro.k8s.<controlPlane-component>.image.tag will be used
+	// (where <controlPlane-component is apiServer, controllerManager and scheduler).
+	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
+
 	// the values for the given chart
 	// +optional
 	Values string `json:"values,omitempty"`

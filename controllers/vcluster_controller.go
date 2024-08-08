@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+	"github.com/loft-sh/vcluster/config"
 	"github.com/loft-sh/vcluster/pkg/util"
 	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
@@ -294,26 +295,50 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		values = vCluster.Spec.HelmRelease.Values
 	}
 
+	// update the k8s version if given
+	cfg, err := config.NewDefaultConfig()
+	if err != nil {
+		return err
+	}
+	if err := cfg.UnmarshalYAMLStrict([]byte(values)); err != nil {
+		return err
+	}
+
+	k8sVersion := vCluster.Spec.HelmRelease.KubernetesVersion
+	if k8sVersion != "" {
+		cfg.ControlPlane.Distro.K8S.Version = k8sVersion
+	}
+
+	defaultConfig, err := config.NewDefaultConfig()
+	if err != nil {
+		return err
+	}
+
+	finalValues, err := config.Diff(defaultConfig, cfg)
+	if err != nil {
+		return err
+	}
+
 	r.Log.Info("Deploy virtual cluster",
 		"namespace", vCluster.Namespace,
 		"clusterName", vCluster.Name,
-		"values", values,
+		"values", finalValues,
 	)
 	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
-	_, err := os.Stat(chartPath)
+	_, err = os.Stat(chartPath)
 	if err != nil {
 		// we have to upgrade / install the chart
 		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
 			Chart:   chartName,
 			Repo:    chartRepo,
 			Version: chartVersion,
-			Values:  values,
+			Values:  finalValues,
 		})
 	} else {
 		// we have to upgrade / install the chart
 		err = r.HelmClient.Upgrade(vCluster.Name, vCluster.Namespace, helm.UpgradeOptions{
 			Path:   chartPath,
-			Values: values,
+			Values: finalValues,
 		})
 	}
 	if err != nil {

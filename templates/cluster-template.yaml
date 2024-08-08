@@ -18,6 +18,7 @@ metadata:
   name: ${CLUSTER_NAME}
 spec:
   helmRelease:
+    kubernetesVersion: ${KUBERNETES_VERSION:=""}
     values: "${HELM_VALUES:=}"
     chart: 
       name: ${CHART_NAME:=vcluster}
