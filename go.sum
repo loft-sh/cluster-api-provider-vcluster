@@ -504,8 +504,8 @@ github.com/loft-sh/log v0.0.0-20240219160058-26d83ffb46ac h1:Gz/7Lb7WgdgIv+KJz87
 github.com/loft-sh/log v0.0.0-20240219160058-26d83ffb46ac/go.mod h1:YImeRjXH34Yf5E79T7UHBQpDZl9fIaaFRgyZ/bkY+UQ=
 github.com/loft-sh/utils v0.0.29 h1:P/MObccXToAZy2QoJSQDJ+OJx1qHitpFHEVj3QBSNJs=
 github.com/loft-sh/utils v0.0.29/go.mod h1:9hlX9cGpWHg3mNi/oBlv3X4ePGDMK66k8MbOZGFMDTI=
-github.com/loft-sh/vcluster v0.20.0-beta.12 h1:xqHLLYbcWEiKyA998CEKaI0AyQ0rf4isPk7DvUri94k=
-github.com/loft-sh/vcluster v0.20.0-beta.12/go.mod h1:Xm+Y8EADJCix31Lvb9kIPO3CIoRRV6RJrL48/skB5qw=
+github.com/loft-sh/vcluster v0.20.0-beta.15 h1:/E3CBS0a3sGeakKtYxwJCo9aSsQZ5oFWiGbZESytF/A=
+github.com/loft-sh/vcluster v0.20.0-beta.15/go.mod h1:Xm+Y8EADJCix31Lvb9kIPO3CIoRRV6RJrL48/skB5qw=
 github.com/lufeee/execinquery v1.2.1 h1:hf0Ems4SHcUGBxpGN7Jz78z1ppVkP/837ZlETPCEtOM=
 github.com/lufeee/execinquery v1.2.1/go.mod h1:EC7DrEKView09ocscGHC+apXMIaorh4xqSxS/dy8SbM=
 github.com/macabu/inamedparam v0.1.3 h1:2tk/phHkMlEL/1GNe/Yf6kkR/hkcUdAEY3L0hjYV1Mk=

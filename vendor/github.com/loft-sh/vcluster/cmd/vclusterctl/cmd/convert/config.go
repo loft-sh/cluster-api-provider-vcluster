@@ -34,7 +34,8 @@ func convertValues(globalFlags *flags.GlobalFlags) *cobra.Command {
 		Long: `##############################################################
 ################## vcluster convert config ###################
 ##############################################################
-Converts virtual cluster config config to the v0.20 format
+Converts the given virtual cluster config to the v0.20 format.
+Reads from stdin if no file is given via "-f".
 
 Examples:
 vcluster convert config --distro k8s -f /my/k8s/values.yaml
@@ -47,7 +48,7 @@ cat /my/k0s/values.yaml | vcluster convert config --distro k0s
 		}}
 
 	cobraCmd.Flags().StringVarP(&c.filePath, "file", "f", "", "Path to the input file")
-	cobraCmd.Flags().StringVar(&c.distro, "distro", "", fmt.Sprintf("Kubernetes distro of the config. Allowed distros: %s", strings.Join([]string{"k8s", "k3s", "k0s", "eks"}, ", ")))
+	cobraCmd.Flags().StringVar(&c.distro, "distro", "", fmt.Sprintf("Kubernetes distro of the config. Allowed distros: %s", strings.Join([]string{"k8s", "k3s", "k0s"}, ", ")))
 	cobraCmd.Flags().StringVarP(&c.format, "output", "o", "yaml", "Prints the output in the specified format. Allowed values: yaml, json")
 
 	return cobraCmd
@@ -60,7 +61,7 @@ func (cmd *configCmd) Run() error {
 	)
 
 	if cmd.distro == "" {
-		return fmt.Errorf("no distro given: please set \"--distro\" (IMPORTANT: distro must match the given config values)")
+		return fmt.Errorf("no distro given: please set \"--distro\" (IMPORTANT: distro must match the given config values, or be \"k8s\" if you are migrating from eks distro)")
 	}
 
 	if cmd.filePath != "" {
