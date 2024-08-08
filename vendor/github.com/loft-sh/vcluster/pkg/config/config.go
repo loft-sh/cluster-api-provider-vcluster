@@ -53,10 +53,6 @@ type VirtualClusterConfig struct {
 	ControlPlaneNamespace string `json:"controlPlaneNamespace,omitempty"`
 }
 
-func (v VirtualClusterConfig) EmbeddedDatabase() bool {
-	return !v.ControlPlane.BackingStore.Database.External.Enabled && !v.ControlPlane.BackingStore.Etcd.Embedded.Enabled && !v.ControlPlane.BackingStore.Etcd.Deploy.Enabled
-}
-
 func (v VirtualClusterConfig) VirtualClusterKubeConfig() config.VirtualClusterKubeConfig {
 	distroConfig := config.VirtualClusterKubeConfig{}
 	switch v.Distro() {
@@ -76,7 +72,7 @@ func (v VirtualClusterConfig) VirtualClusterKubeConfig() config.VirtualClusterKu
 			ClientCACert:        "/data/k0s/pki/ca.crt",
 			RequestHeaderCACert: "/data/k0s/pki/front-proxy-ca.crt",
 		}
-	case config.EKSDistro, config.K8SDistro:
+	case config.K8SDistro:
 		distroConfig = config.VirtualClusterKubeConfig{
 			KubeConfig:          "/data/pki/admin.conf",
 			ServerCAKey:         "/data/pki/ca.key",

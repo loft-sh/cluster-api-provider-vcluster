@@ -21,6 +21,7 @@ import (
 	"github.com/loft-sh/vcluster/pkg/platform/clihelper"
 	"github.com/loft-sh/vcluster/pkg/platform/kube"
 	"github.com/loft-sh/vcluster/pkg/platform/kubeconfig"
+	"github.com/loft-sh/vcluster/pkg/platform/sleepmode"
 	"github.com/loft-sh/vcluster/pkg/projectutil"
 	"github.com/loft-sh/vcluster/pkg/util"
 	perrors "github.com/pkg/errors"
@@ -545,6 +546,10 @@ type ProjectProjectSecret struct {
 	Project       string
 }
 
+func (vci *VirtualClusterInstanceProject) IsInstanceSleeping() bool {
+	return vci != nil && vci.VirtualCluster != nil && sleepmode.IsInstanceSleeping(vci.VirtualCluster)
+}
+
 func GetProjectSecrets(ctx context.Context, managementClient kube.Interface, projectNames ...string) ([]*ProjectProjectSecret, error) {
 	var projects []*managementv1.Project
 	if len(projectNames) == 0 {
@@ -675,7 +680,22 @@ func CreateVirtualClusterInstanceOptions(ctx context.Context, client Client, con
 
 		// get server
 		for _, val := range kubeConfig.Clusters {
-			contextOptions.Server = val.Server
+			if val != nil {
+				contextOptions.Server = val.Server
+			}
+		}
+
+		if len(kubeConfig.AuthInfos) == 0 {
+			return kubeconfig.ContextOptions{}, errors.New("ingress access is configured but no credentials were present in the kubeconfig")
+		}
+		// find the first user and fill cert data with it
+		for _, v := range kubeConfig.AuthInfos {
+			contextOptions.ClientCertificateData = v.ClientCertificateData
+			contextOptions.ClientKeyData = v.ClientKeyData
+			break
+		}
+		if contextOptions.Server == "" {
+			return kubeconfig.ContextOptions{}, errors.New("could not determine server url")
 		}
 
 		contextOptions.InsecureSkipTLSVerify = true
@@ -1088,8 +1108,8 @@ func WaitForVirtualClusterInstance(ctx context.Context, managementClient kube.In
 	}
 
 	if virtualClusterInstance.Status.Phase == storagev1.InstanceSleeping {
-		log.Info("Wait until vcluster wakes up")
-		defer log.Donef("Successfully woken up vcluster %s", name)
+		log.Info("Wait until vcluster instance wakes up")
+		defer log.Donef("virtual cluster %s wakeup successful", name)
 		err := wakeupVCluster(ctx, managementClient, virtualClusterInstance)
 		if err != nil {
 			return nil, fmt.Errorf("error waking up vcluster %s: %s", name, util.GetCause(err))
