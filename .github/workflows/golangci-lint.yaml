@@ -1,14 +1,9 @@
 name: golangci-lint
 
 on:
-  push:
-    tags:
-      - v*
+  pull_request:
     branches:
       - main
-    paths:
-      - "**/*.go"
-  pull_request:
 
 permissions:
   contents: read
