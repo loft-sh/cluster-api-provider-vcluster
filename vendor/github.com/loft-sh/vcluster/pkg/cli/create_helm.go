@@ -102,7 +102,7 @@ type createHelm struct {
 	localCluster     bool
 }
 
-func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.GlobalFlags, vClusterName string, log log.Logger) error {
+func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.GlobalFlags, vClusterName string, log log.Logger, reuseNamespace bool) error {
 	cmd := &createHelm{
 		GlobalFlags:   globalFlags,
 		CreateOptions: options,
@@ -129,6 +129,18 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 	err = clihelper.CheckHelmVersion(string(output))
 	if err != nil {
 		return err
+	}
+	vclusters, err := find.ListVClusters(ctx, cmd.Context, "", cmd.Namespace, log)
+	if err != nil {
+		return err
+	}
+
+	if !reuseNamespace {
+		for _, v := range vclusters {
+			if v.Namespace == cmd.Namespace && v.Name != vClusterName {
+				return fmt.Errorf("there is already a virtual cluster in namespace %s", cmd.Namespace)
+			}
+		}
 	}
 
 	err = cmd.prepare(ctx, vClusterName)
@@ -380,7 +392,7 @@ func (cmd *createHelm) addVCluster(ctx context.Context, vClusterConfig *config.C
 		return nil
 	}
 
-	err = platform.ApplyPlatformSecret(ctx, cmd.LoadedConfig(cmd.log), cmd.kubeClient, "", cmd.Namespace, cmd.Project, "", "", false)
+	err = platform.ApplyPlatformSecret(ctx, cmd.LoadedConfig(cmd.log), cmd.kubeClient, "", cmd.Namespace, cmd.Project, "", "", false, cmd.LoadedConfig(cmd.log).Platform.CertificateAuthorityData)
 	if err != nil {
 		return fmt.Errorf("apply platform secret: %w", err)
 	}
@@ -549,10 +561,9 @@ func (cmd *createHelm) ToChartOptions(kubernetesVersion *version.Info, log log.L
 
 	cfg := cmd.LoadedConfig(log)
 	return &config.ExtraValuesOptions{
-		Distro:    cmd.Distro,
-		Expose:    cmd.Expose,
-		SyncNodes: cmd.localCluster,
-		NodePort:  cmd.localCluster,
+		Distro:   cmd.Distro,
+		Expose:   cmd.Expose,
+		NodePort: cmd.localCluster,
 		KubernetesVersion: config.KubernetesVersion{
 			Major: kubernetesVersion.Major,
 			Minor: kubernetesVersion.Minor,
