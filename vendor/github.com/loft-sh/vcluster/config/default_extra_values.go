@@ -77,7 +77,6 @@ type ExtraValuesOptions struct {
 
 	Expose            bool
 	NodePort          bool
-	SyncNodes         bool
 	KubernetesVersion KubernetesVersion
 
 	DisableTelemetry    bool
@@ -174,18 +173,6 @@ func applyK8SExtraValues(vConfig *Config, options *ExtraValuesOptions) error {
 		return err
 	}
 
-	// get controller image
-	controllerImage, err := getImageByVersion(options.KubernetesVersion, K8SControllerVersionMap)
-	if err != nil {
-		return err
-	}
-
-	// get scheduler image
-	schedulerImage, err := getImageByVersion(options.KubernetesVersion, K8SSchedulerVersionMap)
-	if err != nil {
-		return err
-	}
-
 	// get etcd image
 	etcdImage, err := getImageByVersion(options.KubernetesVersion, K8SEtcdVersionMap)
 	if err != nil {
@@ -194,13 +181,7 @@ func applyK8SExtraValues(vConfig *Config, options *ExtraValuesOptions) error {
 
 	// build values
 	if apiImage != "" {
-		vConfig.ControlPlane.Distro.K8S.APIServer.Image = parseImage(apiImage)
-	}
-	if controllerImage != "" {
-		vConfig.ControlPlane.Distro.K8S.ControllerManager.Image = parseImage(controllerImage)
-	}
-	if schedulerImage != "" {
-		vConfig.ControlPlane.Distro.K8S.Scheduler.Image = parseImage(schedulerImage)
+		vConfig.ControlPlane.Distro.K8S.Version = parseImage(apiImage).Tag
 	}
 	if etcdImage != "" {
 		vConfig.ControlPlane.BackingStore.Etcd.Deploy.StatefulSet.Image = parseImage(etcdImage)
@@ -301,10 +282,6 @@ func addCommonReleaseValues(config *Config, options *ExtraValuesOptions) {
 		}
 
 		config.ControlPlane.Service.Spec["type"] = "NodePort"
-	}
-
-	if options.SyncNodes {
-		config.Sync.FromHost.Nodes.Enabled = true
 	}
 
 	if options.DisableTelemetry {

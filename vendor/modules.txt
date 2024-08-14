@@ -679,7 +679,7 @@ github.com/loft-sh/utils/pkg/command
 github.com/loft-sh/utils/pkg/downloader
 github.com/loft-sh/utils/pkg/downloader/commands
 github.com/loft-sh/utils/pkg/extract
-# github.com/loft-sh/vcluster v0.20.0-beta.15
+# github.com/loft-sh/vcluster v0.20.0
 ## explicit; go 1.22.4
 github.com/loft-sh/vcluster/cmd/vclusterctl/cmd
 github.com/loft-sh/vcluster/cmd/vclusterctl/cmd/convert
