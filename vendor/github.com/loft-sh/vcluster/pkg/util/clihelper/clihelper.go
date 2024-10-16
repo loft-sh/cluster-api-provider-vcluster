@@ -92,7 +92,10 @@ func GetKubeConfig(ctx context.Context, kubeClient *kubernetes.Clientset, vclust
 		return true, nil
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "wait for vcluster")
+		return nil, fmt.Errorf("wait for vcluster: %w", err)
+	}
+	if kubeConfig == nil {
+		return nil, errors.New("nil kubeConfig")
 	}
 
 	return kubeConfig, nil
@@ -125,6 +128,16 @@ func UpdateKubeConfig(contextName string, cluster *clientcmdapi.Cluster, authInf
 	config, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{}).RawConfig()
 	if err != nil {
 		return err
+	}
+
+	if config.Clusters == nil {
+		config.Clusters = map[string]*clientcmdapi.Cluster{}
+	}
+	if config.AuthInfos == nil {
+		config.AuthInfos = map[string]*clientcmdapi.AuthInfo{}
+	}
+	if config.Contexts == nil {
+		config.Contexts = map[string]*clientcmdapi.Context{}
 	}
 
 	config.Clusters[contextName] = cluster
@@ -163,7 +176,6 @@ func checkPort(port int) (status bool, err error) {
 
 	// Try to create a server with the port
 	server, err := net.Listen("tcp", host)
-
 	// if it fails then the port is likely taken
 	if err != nil {
 		return false, err

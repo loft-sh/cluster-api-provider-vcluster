@@ -9,20 +9,20 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/loft-sh/log"
-	"github.com/sirupsen/logrus"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
-
 	managementv1 "github.com/loft-sh/api/v4/pkg/apis/management/v1"
 	storagev1 "github.com/loft-sh/api/v4/pkg/apis/storage/v1"
+	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/pkg/cli/flags"
+	"github.com/loft-sh/vcluster/pkg/cli/util"
 	"github.com/loft-sh/vcluster/pkg/platform"
 	"github.com/loft-sh/vcluster/pkg/platform/clihelper"
 	"github.com/loft-sh/vcluster/pkg/platform/kube"
 	"github.com/loft-sh/vcluster/pkg/upgrade"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -61,16 +61,27 @@ Example:
 vcluster platform add cluster my-cluster
 ########################################################
 		`,
-		Args: cobra.ExactArgs(1),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			newArgs, err := util.PromptForArgs(cmd.Log, args, "cluster name")
+			if err != nil {
+				switch {
+				case errors.Is(err, util.ErrNonInteractive):
+					if err := cobra.ExactArgs(1)(cobraCmd, args); err != nil {
+						return err
+					}
+				default:
+					return err
+				}
+			}
+
 			// Check for newer version
 			upgrade.PrintNewerVersionWarning()
 
-			return cmd.Run(cobraCmd.Context(), args)
+			return cmd.Run(cobraCmd.Context(), newArgs)
 		},
 	}
 
-	c.Flags().StringVar(&cmd.Namespace, "namespace", "loft", "The namespace to generate the service account in. The namespace will be created if it does not exist")
+	c.Flags().StringVar(&cmd.Namespace, "namespace", clihelper.DefaultPlatformNamespace, "The namespace to generate the service account in. The namespace will be created if it does not exist")
 	c.Flags().StringVar(&cmd.ServiceAccount, "service-account", "loft-admin", "The service account name to create")
 	c.Flags().StringVar(&cmd.DisplayName, "display-name", "", "The display name to show in the UI for this cluster")
 	c.Flags().BoolVar(&cmd.Wait, "wait", false, "If true, will wait until the cluster is initialized")
@@ -87,7 +98,6 @@ vcluster platform add cluster my-cluster
 func (cmd *ClusterCmd) Run(ctx context.Context, args []string) error {
 	// Get clusterName from command argument
 	clusterName := args[0]
-
 	platformClient, err := platform.InitClientFromConfig(ctx, cmd.LoadedConfig(cmd.Log))
 	if err != nil {
 		return fmt.Errorf("new client from path: %w", err)
@@ -106,7 +116,7 @@ func (cmd *ClusterCmd) Run(ctx context.Context, args []string) error {
 
 	loftVersion, err := platformClient.Version()
 	if err != nil {
-		return fmt.Errorf("get loft version: %w", err)
+		return fmt.Errorf("get platform version: %w", err)
 	}
 
 	// TODO(ThomasK33): Eventually change this into an Apply instead of a Create call
@@ -121,13 +131,29 @@ func (cmd *ClusterCmd) Run(ctx context.Context, args []string) error {
 					User: user,
 					Team: team,
 				},
-				NetworkPeer: true,
-				Access:      getAccess(user, team),
+				NetworkPeer:         true,
+				ManagementNamespace: cmd.Namespace,
+				Access:              getAccess(user, team),
 			},
 		},
 	}, metav1.CreateOptions{})
 	if err != nil && !kerrors.IsAlreadyExists(err) {
 		return fmt.Errorf("create cluster: %w", err)
+	}
+
+	// get namespace to install if cluster already exists
+	if kerrors.IsAlreadyExists(err) {
+		cluster, err := managementClient.Loft().ManagementV1().Clusters().Get(ctx, clusterName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("get cluster: %w", err)
+		}
+
+		cmd.Namespace = cluster.Spec.ManagementNamespace
+		if cmd.Namespace == "" {
+			cmd.Namespace = "loft" // since this is hardcoded in the platform at https://github.com/loft-sh/loft-enterprise/blob/b716f86a83d5f037ad993a0c3467b54393ef3b1f/pkg/util/agenthelper/helper.go#L9
+		}
+
+		cmd.Log.Infof("Using namespace %s because cluster already exists", cmd.Namespace)
 	}
 
 	accessKey, err := managementClient.Loft().ManagementV1().Clusters().GetAccessKey(ctx, clusterName, metav1.GetOptions{})
@@ -220,28 +246,34 @@ func (cmd *ClusterCmd) Run(ctx context.Context, args []string) error {
 		return fmt.Errorf("create kube client: %w", err)
 	}
 
-	errChan := make(chan error)
+	agentAlreadyInstalled := true
+	_, err = clientset.AppsV1().Deployments(cmd.Namespace).Get(ctx, "loft", metav1.GetOptions{})
+	if err != nil {
+		cmd.Log.Debugf("Error retrieving deployment: %v", err)
+		agentAlreadyInstalled = false
+	}
 
-	go func() {
-		helmCmd := exec.CommandContext(ctx, "helm", helmArgs...)
+	helmCmd := exec.CommandContext(ctx, "helm", helmArgs...)
 
-		helmCmd.Stdout = cmd.Log.Writer(logrus.DebugLevel, true)
-		helmCmd.Stderr = cmd.Log.Writer(logrus.DebugLevel, true)
-		helmCmd.Stdin = os.Stdin
+	helmCmd.Stdout = cmd.Log.Writer(logrus.DebugLevel, true)
+	helmCmd.Stderr = cmd.Log.Writer(logrus.DebugLevel, true)
+	helmCmd.Stdin = os.Stdin
 
-		cmd.Log.Info("Installing Loft agent...")
-		cmd.Log.Debugf("Running helm command: %v", helmCmd.Args)
+	if agentAlreadyInstalled {
+		cmd.Log.Info("Existing vCluster Platform agent found")
+		cmd.Log.Info("Upgrading vCluster Platform agent...")
+	} else {
+		cmd.Log.Info("Installing vCluster Platform agent...")
+	}
+	cmd.Log.Debugf("Running helm command: %v", helmCmd.Args)
 
-		err = helmCmd.Run()
-		if err != nil {
-			errChan <- fmt.Errorf("failed to install loft chart: %w", err)
-		}
-
-		close(errChan)
-	}()
+	err = helmCmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to install loft chart: %w", err)
+	}
 
 	_, err = clihelper.WaitForReadyLoftPod(ctx, clientset, namespace, cmd.Log)
-	if err = errors.Join(err, <-errChan); err != nil {
+	if err != nil {
 		return fmt.Errorf("wait for loft pod: %w", err)
 	}
 
@@ -253,14 +285,18 @@ func (cmd *ClusterCmd) Run(ctx context.Context, args []string) error {
 				return false, err
 			}
 
-			return clusterInstance.Status.Phase == storagev1.ClusterStatusPhaseInitialized, nil
+			return clusterInstance != nil && clusterInstance.Status.Phase == storagev1.ClusterStatusPhaseInitialized, nil
 		})
 		if waitErr != nil {
 			return fmt.Errorf("get cluster: %w", waitErr)
 		}
 	}
 
-	cmd.Log.Donef("Successfully added cluster %s to Loft", clusterName)
+	if !agentAlreadyInstalled {
+		cmd.Log.Donef("Successfully added cluster %s to the platform", clusterName)
+	} else {
+		cmd.Log.Donef("Successfully upgraded platform agent")
+	}
 
 	return nil
 }

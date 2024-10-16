@@ -10,6 +10,7 @@ import (
 	"github.com/loft-sh/log"
 	"github.com/loft-sh/log/survey"
 	"github.com/loft-sh/vcluster/pkg/cli/flags"
+	"github.com/loft-sh/vcluster/pkg/platform/clihelper"
 	"github.com/loft-sh/vcluster/pkg/platform/kube"
 	"github.com/loft-sh/vcluster/pkg/platform/random"
 	"github.com/pkg/errors"
@@ -22,13 +23,13 @@ import (
 
 type PasswordCmd struct {
 	*flags.GlobalFlags
-
-	User     string
-	Password string
-	Create   bool
-	Force    bool
-
 	Log log.Logger
+
+	Namespace string
+	User      string
+	Password  string
+	Create    bool
+	Force     bool
 }
 
 func NewResetCmd(globalFlags *flags.GlobalFlags) *cobra.Command {
@@ -79,6 +80,7 @@ vcluster platform reset password --user admin
 	c.Flags().StringVar(&cmd.Password, "password", "", "The new password to use")
 	c.Flags().BoolVar(&cmd.Create, "create", false, "Creates the user if it does not exist")
 	c.Flags().BoolVar(&cmd.Force, "force", false, "If user had no password will create one")
+	c.Flags().StringVar(&cmd.Namespace, "namespace", clihelper.DefaultPlatformNamespace, "The namespace to use")
 
 	return c
 }
@@ -95,6 +97,22 @@ func (cmd *PasswordCmd) Run() error {
 		return err
 	}
 
+	// check if cluster has platform installed
+	apiResourceList, err := managementClient.Discovery().ServerResourcesForGroupVersion(storagev1.GroupVersion.String())
+	if err != nil {
+		return fmt.Errorf("looks like the api group storage.loft.sh couldn't be found (%w). Please make sure you select the kube context the platform was installed in for this command to work", err)
+	}
+	found := false
+	for _, apiResource := range apiResourceList.APIResources {
+		if apiResource.Kind == "User" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("resource User in api group storage.loft.sh couldn't be found. Please make sure you select the kube context the platform was installed in for this command to work")
+	}
+
 	// get user
 	cmd.Log.Infof("Resetting password of user %s", cmd.User)
 	user, err := managementClient.Loft().StorageV1().Users().Get(context.Background(), cmd.User, metav1.GetOptions{})
@@ -104,6 +122,15 @@ func (cmd *PasswordCmd) Run() error {
 		// create user
 		if !cmd.Create {
 			return fmt.Errorf("user %s was not found, run with '--create' to create this user automatically", cmd.User)
+		}
+
+		if cmd.Namespace == "" {
+			namespace, err := clihelper.VClusterPlatformInstallationNamespace(context.Background())
+			if err != nil {
+				return fmt.Errorf("failed to find platform namespace: %w", err)
+			}
+
+			cmd.Namespace = namespace
 		}
 
 		user, err = managementClient.Loft().StorageV1().Users().Create(context.Background(), &storagev1.User{
@@ -118,7 +145,7 @@ func (cmd *PasswordCmd) Run() error {
 				},
 				PasswordRef: &storagev1.SecretRef{
 					SecretName:      "loft-password-" + random.String(5),
-					SecretNamespace: "loft",
+					SecretNamespace: cmd.Namespace,
 					Key:             "password",
 				},
 			},
@@ -126,6 +153,9 @@ func (cmd *PasswordCmd) Run() error {
 		if err != nil {
 			return err
 		}
+	}
+	if user == nil {
+		return errors.New("could not obtain user")
 	}
 
 	// check if user had a password before
@@ -136,7 +166,7 @@ func (cmd *PasswordCmd) Run() error {
 
 		user.Spec.PasswordRef = &storagev1.SecretRef{
 			SecretName:      "loft-password-" + random.String(5),
-			SecretNamespace: "loft",
+			SecretNamespace: cmd.Namespace,
 			Key:             "password",
 		}
 		user, err = managementClient.Loft().StorageV1().Users().Update(context.Background(), user, metav1.UpdateOptions{})
@@ -184,6 +214,9 @@ func (cmd *PasswordCmd) Run() error {
 			return errors.Wrap(err, "create password secret")
 		}
 	} else {
+		if passwordSecret == nil {
+			passwordSecret = &corev1.Secret{}
+		}
 		if passwordSecret.Data == nil {
 			passwordSecret.Data = map[string][]byte{}
 		}

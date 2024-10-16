@@ -80,6 +80,70 @@ type Config struct {
 type Integrations struct {
 	// MetricsServer reuses the metrics server from the host cluster within the vCluster.
 	MetricsServer MetricsServer `json:"metricsServer,omitempty"`
+
+	// KubeVirt reuses a host kubevirt and makes certain CRDs from it available inside the vCluster
+	KubeVirt KubeVirt `json:"kubeVirt,omitempty"`
+
+	// ExternalSecrets reuses a host external secret operator and makes certain CRDs from it available inside the vCluster
+	ExternalSecrets ExternalSecrets `json:"externalSecrets,omitempty"`
+}
+
+// ExternalSecrets reuses a host external secret operator and makes certain CRDs from it available inside the vCluster
+type ExternalSecrets struct {
+	// Enabled defines whether the external secret integration is enabled or not
+	Enabled bool `json:"enabled,omitempty"`
+	// Webhook defines whether the host webhooks are reused or not
+	Webhook EnableSwitch `json:"webhook,omitempty"`
+	// Sync defines the syncing behavior for the integration
+	Sync ExternalSecretsSync `json:"sync,omitempty"`
+}
+
+type ExternalSecretsSync struct {
+	// ExternalSecrets defines whether to sync external secrets or not
+	ExternalSecrets EnableSwitch `json:"externalSecrets,omitempty"`
+	// Stores defines whether to sync stores or not
+	Stores EnableSwitch `json:"stores,omitempty"`
+	// ClusterStores defines whether to sync cluster stores or not
+	ClusterStores ClusterStoresSyncConfig `json:"clusterStores,omitempty"`
+}
+
+type ClusterStoresSyncConfig struct {
+	EnableSwitch
+	// Selector defines what cluster stores should be synced
+	Selector LabelSelector `json:"selector,omitempty"`
+}
+
+type LabelSelector struct {
+	// Labels defines what labels should be looked for
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+// KubeVirt reuses a host kubevirt and makes certain CRDs from it available inside the vCluster
+type KubeVirt struct {
+	// Enabled signals if the integration should be enabled
+	Enabled bool `json:"enabled,omitempty"`
+	// APIService holds information about where to find the virt-api service. Defaults to virt-api/kubevirt.
+	APIService APIService `json:"apiService,omitempty"`
+	// Webhook holds configuration for enabling the webhook within the vCluster
+	Webhook EnableSwitch `json:"webhook,omitempty"`
+	// Sync holds configuration on what resources to sync
+	Sync KubeVirtSync `json:"sync,omitempty"`
+}
+
+// KubeVirtSync are the crds that are supported by this integration
+type KubeVirtSync struct {
+	// If DataVolumes should get synced
+	DataVolumes EnableSwitch `json:"dataVolumes,omitempty"`
+	// If VirtualMachineInstanceMigrations should get synced
+	VirtualMachineInstanceMigrations EnableSwitch `json:"virtualMachineInstanceMigrations,omitempty"`
+	// If VirtualMachineInstances should get synced
+	VirtualMachineInstances EnableSwitch `json:"virtualMachineInstances,omitempty"`
+	// If VirtualMachines should get synced
+	VirtualMachines EnableSwitch `json:"virtualMachines,omitempty"`
+	// If VirtualMachineClones should get synced
+	VirtualMachineClones EnableSwitch `json:"virtualMachineClones,omitempty"`
+	// If VirtualMachinePools should get synced
+	VirtualMachinePools EnableSwitch `json:"virtualMachinePools,omitempty"`
 }
 
 // MetricsServer reuses the metrics server from the host cluster within the vCluster.
@@ -276,6 +340,10 @@ func (c *Config) IsProFeatureEnabled() bool {
 		return true
 	}
 
+	if len(c.Sync.ToHost.CustomResources) > 0 || len(c.Sync.FromHost.CustomResources) > 0 {
+		return true
+	}
+
 	return false
 }
 
@@ -289,15 +357,33 @@ func UnmarshalYAMLStrict(data []byte, i any) error {
 // ExportKubeConfig describes how vCluster should export the vCluster kubeconfig.
 type ExportKubeConfig struct {
 	// Context is the name of the context within the generated kubeconfig to use.
-	Context string `json:"context"`
+	Context string `json:"context,omitempty"`
 
 	// Override the default https://localhost:8443 and specify a custom hostname for the generated kubeconfig.
-	Server string `json:"server"`
+	Server string `json:"server,omitempty"`
+
+	// If tls should get skipped for the server
+	Insecure bool `json:"insecure,omitempty"`
+
+	// ServiceAccount can be used to generate a service account token instead of the default certificates.
+	ServiceAccount ExportKubeConfigServiceAccount `json:"serviceAccount,omitempty"`
 
 	// Declare in which host cluster secret vCluster should store the generated virtual cluster kubeconfig.
-	// If this is not defined, vCluster create it with `vc-NAME`. If you specify another name,
+	// If this is not defined, vCluster will create it with `vc-NAME`. If you specify another name,
 	// vCluster creates the config in this other secret.
 	Secret ExportKubeConfigSecretReference `json:"secret,omitempty"`
+}
+
+type ExportKubeConfigServiceAccount struct {
+	// Name of the service account to be used to generate a service account token instead of the default certificates.
+	Name string `json:"name,omitempty"`
+
+	// Namespace of the service account to be used to generate a service account token instead of the default certificates.
+	// If omitted, will use the kube-system namespace.
+	Namespace string `json:"namespace,omitempty"`
+
+	// ClusterRole to assign to the service account.
+	ClusterRole string `json:"clusterRole,omitempty"`
 }
 
 // Declare in which host cluster secret vCluster should store the generated virtual cluster kubeconfig.
@@ -331,37 +417,52 @@ type SyncToHost struct {
 	ConfigMaps SyncAllResource `json:"configMaps,omitempty"`
 
 	// Ingresses defines if ingresses created within the virtual cluster should get synced to the host cluster.
-	Ingresses EnableSwitch `json:"ingresses,omitempty"`
+	Ingresses EnableSwitchWithPatches `json:"ingresses,omitempty"`
 
 	// Services defines if services created within the virtual cluster should get synced to the host cluster.
-	Services EnableSwitch `json:"services,omitempty"`
+	Services EnableSwitchWithPatches `json:"services,omitempty"`
 
 	// Endpoints defines if endpoints created within the virtual cluster should get synced to the host cluster.
-	Endpoints EnableSwitch `json:"endpoints,omitempty"`
+	Endpoints EnableSwitchWithPatches `json:"endpoints,omitempty"`
 
 	// NetworkPolicies defines if network policies created within the virtual cluster should get synced to the host cluster.
-	NetworkPolicies EnableSwitch `json:"networkPolicies,omitempty"`
+	NetworkPolicies EnableSwitchWithPatches `json:"networkPolicies,omitempty"`
 
 	// PersistentVolumeClaims defines if persistent volume claims created within the virtual cluster should get synced to the host cluster.
-	PersistentVolumeClaims EnableSwitch `json:"persistentVolumeClaims,omitempty"`
+	PersistentVolumeClaims EnableSwitchWithPatches `json:"persistentVolumeClaims,omitempty"`
 
 	// PersistentVolumes defines if persistent volumes created within the virtual cluster should get synced to the host cluster.
-	PersistentVolumes EnableSwitch `json:"persistentVolumes,omitempty"`
+	PersistentVolumes EnableSwitchWithPatches `json:"persistentVolumes,omitempty"`
 
 	// VolumeSnapshots defines if volume snapshots created within the virtual cluster should get synced to the host cluster.
-	VolumeSnapshots EnableSwitch `json:"volumeSnapshots,omitempty"`
+	VolumeSnapshots EnableSwitchWithPatches `json:"volumeSnapshots,omitempty"`
+
+	// VolumeSnapshotContents defines if volume snapshot contents created within the virtual cluster should get synced to the host cluster.
+	VolumeSnapshotContents EnableSwitchWithPatches `json:"volumeSnapshotContents,omitempty"`
 
 	// StorageClasses defines if storage classes created within the virtual cluster should get synced to the host cluster.
-	StorageClasses EnableSwitch `json:"storageClasses,omitempty"`
+	StorageClasses EnableSwitchWithPatches `json:"storageClasses,omitempty"`
 
 	// ServiceAccounts defines if service accounts created within the virtual cluster should get synced to the host cluster.
-	ServiceAccounts EnableSwitch `json:"serviceAccounts,omitempty"`
+	ServiceAccounts EnableSwitchWithPatches `json:"serviceAccounts,omitempty"`
 
 	// PodDisruptionBudgets defines if pod disruption budgets created within the virtual cluster should get synced to the host cluster.
-	PodDisruptionBudgets EnableSwitch `json:"podDisruptionBudgets,omitempty"`
+	PodDisruptionBudgets EnableSwitchWithPatches `json:"podDisruptionBudgets,omitempty"`
 
 	// PriorityClasses defines if priority classes created within the virtual cluster should get synced to the host cluster.
-	PriorityClasses EnableSwitch `json:"priorityClasses,omitempty"`
+	PriorityClasses EnableSwitchWithPatches `json:"priorityClasses,omitempty"`
+
+	// CustomResources defines what custom resources should get synced from the virtual cluster to the host cluster. vCluster will copy the definition automatically from host cluster to virtual cluster on startup.
+	// vCluster will also automatically add any required RBAC permissions to the vCluster role for this to work.
+	CustomResources map[string]SyncToHostCustomResource `json:"customResources,omitempty"`
+}
+
+type EnableSwitchWithPatches struct {
+	// Enabled defines if this option should be enabled.
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type SyncFromHost struct {
@@ -369,27 +470,118 @@ type SyncFromHost struct {
 	Nodes SyncNodes `json:"nodes,omitempty"`
 
 	// Events defines if events should get synced from the host cluster to the virtual cluster, but not back.
-	Events EnableSwitch `json:"events,omitempty"`
+	Events EnableSwitchWithPatches `json:"events,omitempty"`
 
 	// IngressClasses defines if ingress classes should get synced from the host cluster to the virtual cluster, but not back.
-	IngressClasses EnableSwitch `json:"ingressClasses,omitempty"`
+	IngressClasses EnableSwitchWithPatches `json:"ingressClasses,omitempty"`
+
+	// RuntimeClasses defines if runtime classes should get synced from the host cluster to the virtual cluster, but not back.
+	RuntimeClasses EnableSwitchWithPatches `json:"runtimeClasses,omitempty"`
+
+	// PriorityClasses defines if priority classes classes should get synced from the host cluster to the virtual cluster, but not back.
+	PriorityClasses EnableSwitchWithPatches `json:"priorityClasses,omitempty"`
 
 	// StorageClasses defines if storage classes should get synced from the host cluster to the virtual cluster, but not back. If auto, is automatically enabled when the virtual scheduler is enabled.
-	StorageClasses EnableAutoSwitch `json:"storageClasses,omitempty"`
+	StorageClasses EnableAutoSwitchWithPatches `json:"storageClasses,omitempty"`
 
 	// CSINodes defines if csi nodes should get synced from the host cluster to the virtual cluster, but not back. If auto, is automatically enabled when the virtual scheduler is enabled.
-	CSINodes EnableAutoSwitch `json:"csiNodes,omitempty"`
+	CSINodes EnableAutoSwitchWithPatches `json:"csiNodes,omitempty"`
 
 	// CSIDrivers defines if csi drivers should get synced from the host cluster to the virtual cluster, but not back. If auto, is automatically enabled when the virtual scheduler is enabled.
-	CSIDrivers EnableAutoSwitch `json:"csiDrivers,omitempty"`
+	CSIDrivers EnableAutoSwitchWithPatches `json:"csiDrivers,omitempty"`
 
 	// CSIStorageCapacities defines if csi storage capacities should get synced from the host cluster to the virtual cluster, but not back. If auto, is automatically enabled when the virtual scheduler is enabled.
-	CSIStorageCapacities EnableAutoSwitch `json:"csiStorageCapacities,omitempty"`
+	CSIStorageCapacities EnableAutoSwitchWithPatches `json:"csiStorageCapacities,omitempty"`
+
+	// CustomResources defines what custom resources should get synced read-only to the virtual cluster from the host cluster. vCluster will automatically add any required RBAC to the vCluster cluster role.
+	CustomResources map[string]SyncFromHostCustomResource `json:"customResources,omitempty"`
+
+	// VolumeSnapshotClasses defines if volume snapshot classes created within the virtual cluster should get synced to the host cluster.
+	VolumeSnapshotClasses EnableSwitchWithPatches `json:"volumeSnapshotClasses,omitempty"`
+}
+
+type SyncToHostCustomResource struct {
+	// Enabled defines if this option should be enabled.
+	Enabled bool `json:"enabled,omitempty" jsonschema:"required"`
+
+	// Scope defines the scope of the resource. If undefined, will use Namespaced. Currently only Namespaced is supported.
+	Scope Scope `json:"scope,omitempty"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
+}
+
+type Scope string
+
+const (
+	ScopeNamespaced Scope = "Namespaced"
+	ScopeCluster    Scope = "Cluster"
+)
+
+type TranslatePatch struct {
+	// Path is the path within the patch to target. If the path is not found within the patch, the patch is not applied.
+	Path string `json:"path,omitempty" jsonschema:"required"`
+
+	// Expression transforms the value according to the given JavaScript expression.
+	Expression string `json:"expression,omitempty"`
+
+	// ReverseExpression transforms the value according to the given JavaScript expression.
+	ReverseExpression string `json:"reverseExpression,omitempty"`
+
+	// Reference treats the path value as a reference to another object and will rewrite it based on the chosen mode
+	// automatically. In single-namespace mode this will translate the name to "vxxxxxxxxx" to avoid conflicts with
+	// other names, in multi-namespace mode this will not translate the name.
+	Reference *TranslatePatchReference `json:"reference,omitempty"`
+
+	// Labels treats the path value as a labels selector.
+	Labels *TranslatePatchLabels `json:"labels,omitempty"`
+}
+
+type TranslatePatchLabels struct{}
+
+type TranslatePatchReference struct {
+	// APIVersion is the apiVersion of the referenced object.
+	APIVersion string `json:"apiVersion,omitempty" jsonschema:"required"`
+
+	// APIVersionPath is optional relative path to use to determine the kind. If APIVersionPath is not found, will fallback to apiVersion.
+	APIVersionPath string `json:"apiVersionPath,omitempty"`
+
+	// Kind is the kind of the referenced object.
+	Kind string `json:"kind,omitempty" jsonschema:"required"`
+
+	// KindPath is the optional relative path to use to determine the kind. If KindPath is not found, will fallback to kind.
+	KindPath string `json:"kindPath,omitempty"`
+
+	// NamePath is the optional relative path to the reference name within the object.
+	NamePath string `json:"namePath,omitempty"`
+
+	// NamespacePath is the optional relative path to the reference namespace within the object. If omitted or not found, namespacePath equals to the
+	// metadata.namespace path of the object.
+	NamespacePath string `json:"namespacePath,omitempty"`
+}
+
+type SyncFromHostCustomResource struct {
+	// Enabled defines if this option should be enabled.
+	Enabled bool `json:"enabled,omitempty" jsonschema:"required"`
+
+	// Scope defines the scope of the resource
+	Scope Scope `json:"scope,omitempty" jsonschema:"required"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type EnableAutoSwitch struct {
 	// Enabled defines if this option should be enabled.
 	Enabled StrBool `json:"enabled,omitempty" jsonschema:"oneof_type=string;boolean"`
+}
+
+type EnableAutoSwitchWithPatches struct {
+	// Enabled defines if this option should be enabled.
+	Enabled StrBool `json:"enabled,omitempty" jsonschema:"oneof_type=string;boolean"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type EnableSwitch struct {
@@ -403,6 +595,9 @@ type SyncAllResource struct {
 
 	// All defines if all resources of that type should get synced or only the necessary ones that are needed.
 	All bool `json:"all,omitempty"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type SyncPods struct {
@@ -424,6 +619,9 @@ type SyncPods struct {
 	// a small container to each stateful set pod that will initially rewrite the /etc/hosts file to match the FQDN expected by
 	// the virtual cluster.
 	RewriteHosts SyncRewriteHosts `json:"rewriteHosts,omitempty"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type SyncRewriteHosts struct {
@@ -454,6 +652,9 @@ type SyncNodes struct {
 
 	// Selector can be used to define more granular what nodes should get synced from the host cluster to the virtual cluster.
 	Selector SyncNodeSelector `json:"selector,omitempty"`
+
+	// Patches patch the resource according to the provided specification.
+	Patches []TranslatePatch `json:"patches,omitempty"`
 }
 
 type SyncNodeSelector struct {
@@ -722,6 +923,12 @@ type ControlPlaneStatefulSet struct {
 
 	// Env are additional environment variables for the statefulSet container.
 	Env []map[string]interface{} `json:"env,omitempty"`
+
+	// Set DNS policy for the pod.
+	DNSPolicy DNSPolicy `json:"dnsPolicy,omitempty"`
+
+	// Specifies the DNS parameters of a pod.
+	DNSConfig *PodDNSConfig `json:"dnsConfig,omitempty"`
 }
 
 type Distro struct {
@@ -888,7 +1095,17 @@ type Database struct {
 	Embedded DatabaseKine `json:"embedded,omitempty"`
 
 	// External defines that an external database should be used as the backend for the virtual cluster
-	External DatabaseKine `json:"external,omitempty"`
+	External ExternalDatabaseKine `json:"external,omitempty"`
+}
+
+type ExternalDatabaseKine struct {
+	DatabaseKine
+
+	// Connector specifies a secret located in a connected vCluster Platform that contains database server connection information
+	// to be used by Platform to create a database and database user for the vCluster.
+	// and non-privileged user. A kine endpoint should be created using the database and user on Platform registration.
+	// This is optional.
+	Connector string `json:"connector,omitempty"`
 }
 
 type DatabaseKine struct {
@@ -1070,6 +1287,12 @@ type CoreDNSDeployment struct {
 	// NodeSelector is the node selector to use for coredns.
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
+	// Affinity is the affinity to apply to the pod.
+	Affinity map[string]interface{} `json:"affinity,omitempty"`
+
+	// Tolerations are the tolerations to apply to the pod.
+	Tolerations []map[string]interface{} `json:"tolerations,omitempty"`
+
 	// Resources are the desired resources for coredns.
 	Resources Resources `json:"resources,omitempty"`
 
@@ -1242,31 +1465,31 @@ type VolumeClaim struct {
 // VolumeMount describes a mounting of a Volume within a container.
 type VolumeMount struct {
 	// This must match the Name of a Volume.
-	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
+	Name string `protobuf:"bytes,1,opt,name=name" json:"name"`
 
 	// Mounted read-only if true, read-write otherwise (false or unspecified).
 	// Defaults to false.
-	ReadOnly bool `json:"readOnly,omitempty" protobuf:"varint,2,opt,name=readOnly"`
+	ReadOnly bool `protobuf:"varint,2,opt,name=readOnly" json:"readOnly,omitempty"`
 
 	// Path within the container at which the volume should be mounted.  Must
 	// not contain ':'.
-	MountPath string `json:"mountPath" protobuf:"bytes,3,opt,name=mountPath"`
+	MountPath string `protobuf:"bytes,3,opt,name=mountPath" json:"mountPath"`
 
 	// Path within the volume from which the container's volume should be mounted.
 	// Defaults to "" (volume's root).
-	SubPath string `json:"subPath,omitempty" protobuf:"bytes,4,opt,name=subPath"`
+	SubPath string `protobuf:"bytes,4,opt,name=subPath" json:"subPath,omitempty"`
 
 	// mountPropagation determines how mounts are propagated from the host
 	// to container and the other way around.
 	// When not set, MountPropagationNone is used.
 	// This field is beta in 1.10.
-	MountPropagation *string `json:"mountPropagation,omitempty" protobuf:"bytes,5,opt,name=mountPropagation,casttype=MountPropagationMode"`
+	MountPropagation *string `protobuf:"bytes,5,opt,name=mountPropagation,casttype=MountPropagationMode" json:"mountPropagation,omitempty"`
 
 	// Expanded path within the volume from which the container's volume should be mounted.
 	// Behaves similarly to SubPath but environment variable references $(VAR_NAME) are expanded using the container's environment.
 	// Defaults to "" (volume's root).
 	// SubPathExpr and SubPath are mutually exclusive.
-	SubPathExpr string `json:"subPathExpr,omitempty" protobuf:"bytes,6,opt,name=subPathExpr"`
+	SubPathExpr string `protobuf:"bytes,6,opt,name=subPathExpr" json:"subPathExpr,omitempty"`
 }
 
 type ControlPlaneScheduling struct {
@@ -1419,6 +1642,12 @@ type LimitRange struct {
 	// DefaultRequest are the default request options for the limit range
 	DefaultRequest map[string]interface{} `json:"defaultRequest,omitempty"`
 
+	// Max are the max limits for the limit range
+	Max map[string]interface{} `json:"max,omitempty"`
+
+	// Min are the min limits for the limit range
+	Min map[string]interface{} `json:"min,omitempty"`
+
 	LabelsAndAnnotations `json:",inline"`
 }
 
@@ -1482,7 +1711,7 @@ type MutatingWebhookConfiguration struct {
 type MutatingWebhook struct {
 	// reinvocationPolicy indicates whether this webhook should be called multiple times as part of a single admission evaluation.
 	// Allowed values are "Never" and "IfNeeded".
-	ReinvocationPolicy *string `json:"reinvocationPolicy,omitempty" protobuf:"bytes,10,opt,name=reinvocationPolicy,casttype=ReinvocationPolicyType"`
+	ReinvocationPolicy *string `protobuf:"bytes,10,opt,name=reinvocationPolicy,casttype=ReinvocationPolicyType" json:"reinvocationPolicy,omitempty"`
 
 	ValidatingWebhook `json:",inline"`
 }
@@ -1713,9 +1942,6 @@ type ExperimentalSyncSettings struct {
 
 	// SetOwner specifies if vCluster should set an owner reference on the synced objects to the vCluster service. This allows for easy garbage collection.
 	SetOwner bool `json:"setOwner,omitempty"`
-
-	// SyncLabels are labels that should get not rewritten when syncing from the virtual cluster.
-	SyncLabels []string `json:"syncLabels,omitempty"`
 
 	// HostMetricsBindAddress is the bind address for the local manager
 	HostMetricsBindAddress string `json:"hostMetricsBindAddress,omitempty"`
@@ -1988,22 +2214,79 @@ type DenyRule struct {
 
 type RuleWithVerbs struct {
 	// APIGroups is the API groups the resources belong to. '*' is all groups.
-	APIGroups []string `json:"apiGroups,omitempty" protobuf:"bytes,1,rep,name=apiGroups"`
+	APIGroups []string `protobuf:"bytes,1,rep,name=apiGroups" json:"apiGroups,omitempty"`
 
 	// APIVersions is the API versions the resources belong to. '*' is all versions.
-	APIVersions []string `json:"apiVersions,omitempty" protobuf:"bytes,2,rep,name=apiVersions"`
+	APIVersions []string `protobuf:"bytes,2,rep,name=apiVersions" json:"apiVersions,omitempty"`
 
 	// Resources is a list of resources this rule applies to.
-	Resources []string `json:"resources,omitempty" protobuf:"bytes,3,rep,name=resources"`
+	Resources []string `protobuf:"bytes,3,rep,name=resources" json:"resources,omitempty"`
 
 	// Scope specifies the scope of this rule.
-	Scope *string `json:"scope,omitempty" protobuf:"bytes,4,rep,name=scope"`
+	Scope *string `protobuf:"bytes,4,rep,name=scope" json:"scope,omitempty"`
 
 	// Verb is the kube verb associated with the request for API requests, not the http verb. This includes things like list and watch.
 	// For non-resource requests, this is the lowercase http verb.
 	// If '*' is present, the length of the slice must be one.
 	Verbs []string `json:"operations,omitempty"`
 }
+
+// PodDNSConfig defines the DNS parameters of a pod in addition to
+// those generated from DNSPolicy.
+type PodDNSConfig struct {
+	// A list of DNS name server IP addresses.
+	// This will be appended to the base nameservers generated from DNSPolicy.
+	// Duplicated nameservers will be removed.
+	// +optional
+	// +listType=atomic
+	Nameservers []string `protobuf:"bytes,1,rep,name=nameservers" json:"nameservers,omitempty"`
+	// A list of DNS search domains for host-name lookup.
+	// This will be appended to the base search paths generated from DNSPolicy.
+	// Duplicated search paths will be removed.
+	// +optional
+	// +listType=atomic
+	Searches []string `protobuf:"bytes,2,rep,name=searches" json:"searches,omitempty"`
+	// A list of DNS resolver options.
+	// This will be merged with the base options generated from DNSPolicy.
+	// Duplicated entries will be removed. Resolution options given in Options
+	// will override those that appear in the base DNSPolicy.
+	// +optional
+	// +listType=atomic
+	Options []PodDNSConfigOption `protobuf:"bytes,3,rep,name=options" json:"options,omitempty"`
+}
+
+// PodDNSConfigOption defines DNS resolver options of a pod.
+type PodDNSConfigOption struct {
+	// Required.
+	Name string `protobuf:"bytes,1,opt,name=name" json:"name,omitempty"`
+	// +optional
+	Value *string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
+}
+
+// DNSPolicy defines how a pod's DNS will be configured.
+// +enum
+type DNSPolicy string
+
+const (
+	// DNSClusterFirstWithHostNet indicates that the pod should use cluster DNS
+	// first, if it is available, then fall back on the default
+	// (as determined by kubelet) DNS settings.
+	DNSClusterFirstWithHostNet DNSPolicy = "ClusterFirstWithHostNet"
+
+	// DNSClusterFirst indicates that the pod should use cluster DNS
+	// first unless hostNetwork is true, if it is available, then
+	// fall back on the default (as determined by kubelet) DNS settings.
+	DNSClusterFirst DNSPolicy = "ClusterFirst"
+
+	// DNSDefault indicates that the pod should use the default (as
+	// determined by kubelet) DNS settings.
+	DNSDefault DNSPolicy = "Default"
+
+	// DNSNone indicates that the pod should use empty DNS settings. DNS
+	// parameters such as nameservers and search paths should be defined via
+	// DNSConfig.
+	DNSNone DNSPolicy = "None"
+)
 
 // addProToJSONSchema looks for fields with the `product:"pro"` tag and adds the pro tag to the central field.
 // Requires `json:""` tag to be set as well.

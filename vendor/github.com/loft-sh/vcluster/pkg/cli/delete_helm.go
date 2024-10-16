@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	managementv1 "github.com/loft-sh/api/v4/pkg/apis/management/v1"
 	"github.com/loft-sh/log"
 	"github.com/loft-sh/vcluster/pkg/cli/find"
 	"github.com/loft-sh/vcluster/pkg/cli/flags"
@@ -25,11 +26,10 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
 
-const VirtualClusterServiceUIDLabel = "vcluster.loft.sh/service-uid"
-
 type DeleteOptions struct {
 	Driver string
 
+	Project             string
 	Wait                bool
 	KeepPVC             bool
 	DeleteNamespace     bool
@@ -37,8 +37,6 @@ type DeleteOptions struct {
 	DeleteConfigMap     bool
 	AutoDeleteNamespace bool
 	IgnoreNotFound      bool
-
-	Project string
 }
 
 type deleteHelm struct {
@@ -122,10 +120,13 @@ func DeleteHelm(ctx context.Context, options *DeleteOptions, globalFlags *flags.
 
 	// try to delete the vCluster in the platform
 	if vClusterService != nil {
+		cmd.log.Debugf("deleting vcluster in platform")
 		err = cmd.deleteVClusterInPlatform(ctx, vClusterService)
 		if err != nil {
 			return err
 		}
+	} else {
+		cmd.log.Warn("vcluster service not found, could not delete in platform")
 	}
 
 	// try to delete the pvc
@@ -242,15 +243,21 @@ func (cmd *deleteHelm) deleteVClusterInPlatform(ctx context.Context, vClusterSer
 		return nil
 	}
 
-	virtualClusterInstances, err := managementClient.Loft().ManagementV1().VirtualClusterInstances(corev1.NamespaceAll).List(ctx, metav1.ListOptions{
-		LabelSelector: VirtualClusterServiceUIDLabel + "=" + string(vClusterService.UID),
-	})
+	virtualClusterInstances, err := managementClient.Loft().ManagementV1().VirtualClusterInstances(corev1.NamespaceAll).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		cmd.log.Debugf("Error retrieving vcluster instances: %v", err)
 		return nil
 	}
 
+	toDelete := []managementv1.VirtualClusterInstance{}
 	for _, virtualClusterInstance := range virtualClusterInstances.Items {
+		if virtualClusterInstance.Status.ServiceUID != "" && virtualClusterInstance.Status.ServiceUID == string(vClusterService.UID) {
+			toDelete = append(toDelete, virtualClusterInstance)
+		}
+	}
+	cmd.log.Debugf("found %d matching virtualclusterinstances", len(toDelete))
+
+	for _, virtualClusterInstance := range toDelete {
 		cmd.log.Infof("Delete virtual cluster instance %s/%s in platform", virtualClusterInstance.Namespace, virtualClusterInstance.Name)
 		err = managementClient.Loft().ManagementV1().VirtualClusterInstances(virtualClusterInstance.Namespace).Delete(ctx, virtualClusterInstance.Name, metav1.DeleteOptions{})
 		if err != nil {
@@ -278,11 +285,6 @@ func (cmd *deleteHelm) prepare(vCluster *find.VCluster) error {
 		return err
 	}
 
-	err = localkubernetes.CleanupLocal(vCluster.Name, vCluster.Namespace, &rawConfig, cmd.log)
-	if err != nil {
-		cmd.log.Warnf("error cleaning up: %v", err)
-	}
-
 	// construct proxy name
 	proxyName := find.VClusterConnectBackgroundProxyName(vCluster.Name, vCluster.Namespace, rawConfig.CurrentContext)
 	_ = localkubernetes.CleanupBackgroundProxy(proxyName, cmd.log)
@@ -300,6 +302,10 @@ func (cmd *deleteHelm) prepare(vCluster *find.VCluster) error {
 }
 
 func deleteContext(kubeConfig *clientcmdapi.Config, kubeContext string, otherContext string) error {
+	if kubeConfig == nil || kubeConfig.Contexts == nil {
+		return nil
+	}
+
 	// Get context
 	contextRaw, ok := kubeConfig.Contexts[kubeContext]
 	if !ok {
@@ -314,6 +320,10 @@ func deleteContext(kubeConfig *clientcmdapi.Config, kubeContext string, otherCon
 
 	// Check if AuthInfo or Cluster is used by any other context
 	for name, ctx := range kubeConfig.Contexts {
+		if ctx == nil {
+			continue
+		}
+
 		if name != kubeContext && ctx.AuthInfo == contextRaw.AuthInfo {
 			removeAuthInfo = false
 		}
