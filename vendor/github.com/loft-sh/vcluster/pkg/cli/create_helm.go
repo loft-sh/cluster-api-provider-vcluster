@@ -61,8 +61,6 @@ type CreateOptions struct {
 	UpdateCurrent   bool
 	BackgroundProxy bool
 	Add             bool
-	CreateContext   bool
-	SwitchContext   bool
 	Expose          bool
 	ExposeLocal     bool
 	Connect         bool
@@ -159,7 +157,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 			if cmd.Connect {
 				return ConnectHelm(ctx, &ConnectOptions{
 					BackgroundProxy:       cmd.BackgroundProxy,
-					UpdateCurrent:         cmd.UpdateCurrent,
+					UpdateCurrent:         true,
 					KubeConfigContextName: cmd.KubeConfigContextName,
 					KubeConfig:            "./kubeconfig.yaml",
 				}, cmd.GlobalFlags, vClusterName, nil, cmd.log)
@@ -176,7 +174,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 			return err
 		}
 		// TODO Delete after vCluster 0.19.x resp. the old config format is out of support.
-		if isLegacyVCluster(release.Chart.Metadata.Version) {
+		if release != nil && release.Chart != nil && release.Chart.Metadata != nil && isLegacyVCluster(release.Chart.Metadata.Version) {
 			// If we have a < v0.20 virtual cluster running we have to infer the distro from the current chart name.
 			currentDistro := strings.TrimPrefix(release.Chart.Metadata.Name, "vcluster-")
 			// If we are upgrading a vCluster < v0.20 the old k3s chart is the one without a prefix.
@@ -303,7 +301,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 
 	// create platform secret
 	if cmd.Add {
-		err = cmd.addVCluster(ctx, vClusterConfig)
+		err = cmd.addVCluster(ctx, vClusterName, vClusterConfig)
 		if err != nil {
 			return err
 		}
@@ -320,7 +318,7 @@ func CreateHelm(ctx context.Context, options *CreateOptions, globalFlags *flags.
 		cmd.log.Donef("Successfully %s virtual cluster %s in namespace %s", verb, vClusterName, cmd.Namespace)
 		return ConnectHelm(ctx, &ConnectOptions{
 			BackgroundProxy:       cmd.BackgroundProxy,
-			UpdateCurrent:         cmd.UpdateCurrent,
+			UpdateCurrent:         true,
 			Print:                 cmd.Print,
 			KubeConfigContextName: cmd.KubeConfigContextName,
 			KubeConfig:            "./kubeconfig.yaml",
@@ -374,11 +372,11 @@ func (cmd *createHelm) parseVClusterYAML(chartValues string) (*config.Config, er
 	return vClusterConfig, nil
 }
 
-func (cmd *createHelm) addVCluster(ctx context.Context, vClusterConfig *config.Config) error {
+func (cmd *createHelm) addVCluster(ctx context.Context, name string, vClusterConfig *config.Config) error {
 	platformConfig, err := vClusterConfig.GetPlatformConfig()
 	if err != nil {
 		return fmt.Errorf("get platform config: %w", err)
-	} else if platformConfig.APIKey.SecretName != "" {
+	} else if platformConfig.APIKey.SecretName != "" || platformConfig.APIKey.Namespace != "" {
 		return nil
 	}
 
@@ -392,7 +390,7 @@ func (cmd *createHelm) addVCluster(ctx context.Context, vClusterConfig *config.C
 		return nil
 	}
 
-	err = platform.ApplyPlatformSecret(ctx, cmd.LoadedConfig(cmd.log), cmd.kubeClient, "", cmd.Namespace, cmd.Project, "", "", false, cmd.LoadedConfig(cmd.log).Platform.CertificateAuthorityData)
+	err = platform.ApplyPlatformSecret(ctx, cmd.LoadedConfig(cmd.log), cmd.kubeClient, "", name, cmd.Namespace, cmd.Project, "", "", false, cmd.LoadedConfig(cmd.log).Platform.CertificateAuthorityData, cmd.log)
 	if err != nil {
 		return fmt.Errorf("apply platform secret: %w", err)
 	}
@@ -406,6 +404,8 @@ func (cmd *createHelm) isLoftAgentDeployed(ctx context.Context) (bool, error) {
 	})
 	if err != nil && !kerrors.IsNotFound(err) {
 		return false, err
+	} else if podList == nil {
+		return false, errors.New("nil podList")
 	}
 
 	return len(podList.Items) > 0, nil
@@ -457,7 +457,7 @@ func isLegacyConfig(values []byte) bool {
 // helmValuesYAML returns the extraValues from the helm release in yaml format.
 // If the extra values in the chart are nil it returns an empty string.
 func helmExtraValuesYAML(release *helm.Release) (string, error) {
-	if release.Config == nil {
+	if release == nil || release.Config == nil {
 		return "", nil
 	}
 	extraValues, err := yaml.Marshal(release.Config)

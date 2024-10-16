@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/loft-sh/vcluster/pkg/log"
+	"github.com/loft-sh/vcluster/pkg/scheme"
 	"github.com/pkg/errors"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1clientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -18,24 +18,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
-
-var (
-	NamespaceLabel  = "vcluster.loft.sh/namespace"
-	MarkerLabel     = "vcluster.loft.sh/managed-by"
-	LabelPrefix     = "vcluster.loft.sh/label"
-	ControllerLabel = "vcluster.loft.sh/controlled-by"
-
-	// VClusterName is the vcluster name, usually set at start time
-	VClusterName = "suffix"
-
-	ManagedAnnotationsAnnotation = "vcluster.loft.sh/managed-annotations"
-	ManagedLabelsAnnotation      = "vcluster.loft.sh/managed-labels"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 const (
@@ -43,6 +32,109 @@ const (
 )
 
 var Owner client.Object
+
+func CopyObjectWithName[T client.Object](obj T, name types.NamespacedName, setOwner bool) T {
+	target := obj.DeepCopyObject().(T)
+
+	// reset metadata & translate name and namespace
+	ResetObjectMetadata(target)
+	target.SetName(name.Name)
+	if obj.GetNamespace() != "" {
+		target.SetNamespace(name.Namespace)
+
+		// set owning stateful set if defined
+		if setOwner && Owner != nil {
+			target.SetOwnerReferences(GetOwnerReference(obj))
+		}
+	}
+
+	return target
+}
+
+func HostMetadata[T client.Object](vObj T, name types.NamespacedName, excludedAnnotations ...string) T {
+	pObj := CopyObjectWithName(vObj, name, true)
+	pObj.SetAnnotations(HostAnnotations(vObj, pObj, excludedAnnotations...))
+	pObj.SetLabels(HostLabels(vObj, nil))
+	return pObj
+}
+
+func VirtualMetadata[T client.Object](pObj T, name types.NamespacedName, excludedAnnotations ...string) T {
+	vObj := CopyObjectWithName(pObj, name, false)
+	vObj.SetAnnotations(VirtualAnnotations(pObj, nil, excludedAnnotations...))
+	vObj.SetLabels(VirtualLabels(pObj, nil))
+	return vObj
+}
+
+func VirtualAnnotations(pObj, vObj client.Object, excluded ...string) map[string]string {
+	excluded = append(excluded, NameAnnotation, NamespaceAnnotation, HostNameAnnotation, HostNamespaceAnnotation, UIDAnnotation, KindAnnotation, ManagedAnnotationsAnnotation, ManagedLabelsAnnotation)
+	var toAnnotations map[string]string
+	if vObj != nil {
+		toAnnotations = vObj.GetAnnotations()
+	}
+
+	return copyMaps(pObj.GetAnnotations(), toAnnotations, func(key string) bool {
+		return exists(excluded, key)
+	})
+}
+
+func copyMaps(fromMap, toMap map[string]string, excludeKey func(string) bool) map[string]string {
+	retMap := map[string]string{}
+	for k, v := range fromMap {
+		if excludeKey != nil && excludeKey(k) {
+			continue
+		}
+
+		retMap[k] = v
+	}
+
+	for key := range toMap {
+		if excludeKey != nil && excludeKey(key) {
+			value, ok := toMap[key]
+			if ok {
+				retMap[key] = value
+			}
+		}
+	}
+
+	return retMap
+}
+
+func HostAnnotations(vObj, pObj client.Object, excluded ...string) map[string]string {
+	excluded = append(excluded, NameAnnotation, HostNameAnnotation, HostNamespaceAnnotation, UIDAnnotation, KindAnnotation, NamespaceAnnotation)
+	toAnnotations := map[string]string{}
+	if pObj != nil {
+		toAnnotations = pObj.GetAnnotations()
+		if toAnnotations == nil {
+			toAnnotations = map[string]string{}
+		}
+	}
+
+	retMap := applyAnnotations(vObj.GetAnnotations(), toAnnotations, excluded...)
+	addHostAnnotations(retMap, vObj, pObj)
+
+	return retMap
+}
+
+func addHostAnnotations(retMap map[string]string, vObj, pObj client.Object) {
+	retMap[NameAnnotation] = vObj.GetName()
+	retMap[UIDAnnotation] = string(vObj.GetUID())
+	if pObj != nil {
+		retMap[HostNameAnnotation] = pObj.GetName()
+		if pObj.GetNamespace() != "" {
+			retMap[HostNamespaceAnnotation] = pObj.GetNamespace()
+		}
+	}
+	if vObj.GetNamespace() == "" {
+		delete(retMap, NamespaceAnnotation)
+	} else {
+		retMap[NamespaceAnnotation] = vObj.GetNamespace()
+	}
+
+	gvk, err := apiutil.GVKForObject(vObj, scheme.Scheme)
+	if err == nil {
+		retMap[KindAnnotation] = gvk.String()
+	}
+}
 
 func GetOwnerReference(object client.Object) []metav1.OwnerReference {
 	if Owner == nil || Owner.GetName() == "" || Owner.GetUID() == "" {
@@ -77,21 +169,6 @@ func SafeConcatName(name ...string) string {
 		return strings.ReplaceAll(fullPath[0:52]+"-"+hex.EncodeToString(digest[0:])[0:10], ".-", "-")
 	}
 	return fullPath
-}
-
-func UniqueSlice(stringSlice []string) []string {
-	keys := make(map[string]bool)
-	list := []string{}
-	for _, entry := range stringSlice {
-		if entry == "" {
-			continue
-		}
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
 }
 
 func Split(s, sep string) (string, string) {
@@ -183,7 +260,7 @@ type ApplyMapsOptions struct {
 	ExcludeKeys []string
 }
 
-func applyMaps(fromMap map[string]string, toMap map[string]string, opts ApplyMapsOptions) (map[string]string, string) {
+func applyMaps(fromMap, toMap map[string]string, opts ApplyMapsOptions) (map[string]string, string) {
 	retMap := map[string]string{}
 	managedKeys := []string{}
 	for k, v := range fromMap {
@@ -197,9 +274,7 @@ func applyMaps(fromMap map[string]string, toMap map[string]string, opts ApplyMap
 
 	for key, value := range toMap {
 		if exists(opts.ExcludeKeys, key) {
-			if value != "" {
-				retMap[key] = value
-			}
+			retMap[key] = value
 			continue
 		} else if exists(managedKeys, key) || exists(opts.ManagedKeys, key) {
 			continue
@@ -236,7 +311,7 @@ func EnsureCRDFromPhysicalCluster(ctx context.Context, pConfig *rest.Config, vCo
 
 		crdDefinition, err := vClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, crdName, metav1.GetOptions{})
 		if err != nil {
-			log.NewWithoutName().Infof("Error getting CRD %s in the virtual cluster: %v", crdName, err)
+			klog.FromContext(ctx).Error(err, "Error getting CRD in the virtual cluster", "crd", crdName)
 			return isClusterScoped, hasStatusSubresource, nil
 		}
 
@@ -300,24 +375,28 @@ func EnsureCRDFromPhysicalCluster(ctx context.Context, pConfig *rest.Config, vCo
 	crdDefinition.Spec.Versions = newVersions
 
 	// apply the crd
-	log.NewWithoutName().Infof("Create crd %s in virtual cluster", groupVersionKind.String())
+	klog.FromContext(ctx).Info("Create crd in virtual cluster", "crd", groupVersionKind.String())
 	_, err = vClient.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, crdDefinition, metav1.CreateOptions{})
-	if err != nil {
+	if err != nil && !kerrors.IsAlreadyExists(err) {
 		return isClusterScoped, hasStatusSubresource, errors.Wrap(err, "create crd in virtual cluster")
 	}
 
 	// wait for crd to become ready
-	log.NewWithoutName().Infof("Wait for crd %s to become ready in virtual cluster", groupVersionKind.String())
+	klog.FromContext(ctx).Info("Wait for crd to become ready in virtual cluster", "crd", groupVersionKind.String())
 	err = wait.ExponentialBackoffWithContext(ctx, wait.Backoff{Duration: time.Second, Factor: 1.5, Cap: time.Minute, Steps: math.MaxInt32}, func(ctx context.Context) (bool, error) {
 		crdDefinition, err := vClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, groupVersionResource.GroupResource().String(), metav1.GetOptions{})
 		if err != nil {
 			return false, errors.Wrap(err, "retrieve crd in virtual cluster")
 		}
+		message := ""
 		for _, cond := range crdDefinition.Status.Conditions {
 			if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
 				return true, nil
+			} else if cond.Type == apiextensionsv1.Established {
+				message = cond.String()
 			}
 		}
+		klog.FromContext(ctx).Info("CRD is not ready yet", "crd", groupVersionKind.String(), "message", message)
 		return false, nil
 	})
 	if err != nil {

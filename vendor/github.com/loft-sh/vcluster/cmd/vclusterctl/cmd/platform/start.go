@@ -3,14 +3,19 @@ package platform
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
+	"github.com/blang/semver"
 	"github.com/loft-sh/log"
 	"github.com/loft-sh/log/survey"
 	"github.com/loft-sh/log/terminal"
+	"github.com/loft-sh/vcluster/pkg/cli/email"
 	"github.com/loft-sh/vcluster/pkg/cli/find"
 	"github.com/loft-sh/vcluster/pkg/cli/flags"
 	"github.com/loft-sh/vcluster/pkg/cli/start"
 	"github.com/loft-sh/vcluster/pkg/platform"
+	"github.com/loft-sh/vcluster/pkg/platform/clihelper"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -53,7 +58,7 @@ before running this command:
 	}
 
 	startCmd.Flags().StringVar(&cmd.Context, "context", "", "The kube context to use for installation")
-	startCmd.Flags().StringVar(&cmd.Namespace, "namespace", "vcluster-platform", "The namespace to install vCluster platform into")
+	startCmd.Flags().StringVar(&cmd.Namespace, "namespace", clihelper.DefaultPlatformNamespace, "The namespace to install vCluster platform into")
 	startCmd.Flags().StringVar(&cmd.LocalPort, "local-port", "", "The local port to bind to if using port-forwarding")
 	startCmd.Flags().StringVar(&cmd.Host, "host", "", "Provide a hostname to enable ingress and configure its hostname")
 	startCmd.Flags().StringVar(&cmd.Password, "password", "", "The password to use for the admin account. (If empty this will be the namespace UID)")
@@ -62,7 +67,7 @@ before running this command:
 	startCmd.Flags().BoolVar(&cmd.ReuseValues, "reuse-values", true, "Reuse previous vCluster platform helm values on upgrade")
 	startCmd.Flags().BoolVar(&cmd.Upgrade, "upgrade", false, "If true, vCluster platform will try to upgrade the release")
 	startCmd.Flags().StringVar(&cmd.Email, "email", "", "The email to use for the installation")
-	startCmd.Flags().BoolVar(&cmd.Reset, "reset", false, "If true, an existing vCluster platform instance will be deleted before installing vCluster platform")
+	startCmd.Flags().BoolVar(&cmd.Reset, "reset", false, "If true, existing vCluster Platform resources, including the deployment, will be deleted before installing vCluster platform")
 	startCmd.Flags().BoolVar(&cmd.NoWait, "no-wait", false, "If true, vCluster platform will not wait after installing it")
 	startCmd.Flags().BoolVar(&cmd.NoPortForwarding, "no-port-forwarding", false, "If true, vCluster platform will not do port forwarding after installing it")
 	startCmd.Flags().BoolVar(&cmd.NoTunnel, "no-tunnel", false, "If true, vCluster platform will not create a loft.host tunnel for this installation")
@@ -75,6 +80,10 @@ before running this command:
 }
 
 func (cmd *StartCmd) Run(ctx context.Context) error {
+	if err := cmd.ensureEmailWithDisclaimer(); err != nil {
+		return err
+	}
+
 	// get version to deploy
 	if cmd.Version == "latest" || cmd.Version == "" {
 		cmd.Version = platform.MinimumVersionTag
@@ -83,6 +92,15 @@ func (cmd *StartCmd) Run(ctx context.Context) error {
 			cmd.Version = latestVersion
 		}
 	}
+
+	// if < v4.0.0 then use ChartName loft
+	parsedVersion, err := semver.Parse(strings.TrimPrefix(cmd.Version, "v"))
+	if err != nil {
+		return fmt.Errorf("parse provided version %s: %w", cmd.Version, err)
+	} else if parsedVersion.LT(semver.MustParse("4.0.0-alpha.0")) && cmd.ChartName == "vcluster-platform" {
+		cmd.ChartName = "loft"
+	}
+
 	// make sure we are in the correct context
 	// first load the kube config
 	kubeClientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{
@@ -129,4 +147,45 @@ func (cmd *StartCmd) Run(ctx context.Context) error {
 	}
 
 	return start.NewLoftStarter(cmd.Options).Start(ctx)
+}
+
+func (cmd *StartCmd) ensureEmailWithDisclaimer() error {
+	fmt.Printf(`By providing your email, you accept our Terms of Service and Privacy Statement:
+Terms of Service: https://www.loft.sh/legal/terms
+Privacy Statement: https://www.loft.sh/legal/privacy
+`)
+	if !terminal.IsTerminalIn {
+		return validateEmail(cmd.Email)
+	}
+
+	var err error
+	if cmd.Email, err = promptForEmail(cmd.Email); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func promptForEmail(emailAddress string) (string, error) {
+	if err := validateEmail(emailAddress); err != nil {
+		return survey.NewSurvey().Question(&survey.QuestionOptions{
+			Question:       "Please specify an email address for the admin user",
+			ValidationFunc: validateEmail,
+		})
+	}
+
+	return emailAddress, nil
+}
+
+func validateEmail(emailAddress string) error {
+	if emailAddress == "" {
+		return fmt.Errorf("admin email address is required")
+	}
+
+	// 10 second timeout per ENG-4850
+	if err := email.Validate(emailAddress, email.WithCheckMXTimeout(time.Second*10)); err != nil {
+		return fmt.Errorf(`"%s" failed with error: "%w"`, emailAddress, err)
+	}
+
+	return nil
 }

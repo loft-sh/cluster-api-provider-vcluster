@@ -39,6 +39,8 @@ sync:
       enabled: false
     volumeSnapshots:
       enabled: false
+    volumeSnapshotContents:
+      enabled: false
     podDisruptionBudgets:
       enabled: false
     serviceAccounts:
@@ -61,6 +63,10 @@ sync:
       enabled: auto
     ingressClasses:
       enabled: false
+    runtimeClasses:
+      enabled: false
+    priorityClasses:
+      enabled: false
     nodes:
       enabled: false
       syncBackChanges: false
@@ -68,12 +74,8 @@ sync:
       selector:
         all: false
         labels: {}
-
-integrations:
-  metricsServer:
-    enabled: false
-    nodes: true
-    pods: true
+    volumeSnapshotClasses:
+      enabled: false
 
 controlPlane:
   distro:
@@ -88,7 +90,7 @@ controlPlane:
         image:
           registry: registry.k8s.io
           repository: kube-apiserver
-          tag: "v1.30.2"
+          tag: "v1.31.1"
       controllerManager:
         enabled: true
         command: []
@@ -97,7 +99,7 @@ controlPlane:
         image:
           registry: registry.k8s.io
           repository: "kube-controller-manager"
-          tag: "v1.30.2"
+          tag: "v1.31.1"
       scheduler:
         command: []
         extraArgs: []
@@ -105,7 +107,7 @@ controlPlane:
         image:
           registry: registry.k8s.io
           repository: "kube-scheduler"
-          tag: "v1.30.2"
+          tag: "v1.31.1"
       env: []
       securityContext: {}
       resources:
@@ -124,7 +126,7 @@ controlPlane:
       image:
         registry: ""
         repository: "rancher/k3s"
-        tag: "v1.30.2-k3s1"
+        tag: "v1.31.1-k3s1"
       securityContext: {}
       resources:
         limits:
@@ -160,6 +162,7 @@ controlPlane:
       external:
         enabled: false
         dataSource: ""
+        connector: ""
         certFile: ""
         keyFile: ""
         caFile: ""
@@ -177,7 +180,7 @@ controlPlane:
           image:
             registry: "registry.k8s.io"
             repository: "etcd"
-            tag: "3.5.13-0"
+            tag: "3.5.15-0"
           imagePullPolicy: ""
           extraArgs: []
           env: []
@@ -206,7 +209,7 @@ controlPlane:
               retentionPolicy: Retain
               size: 5Gi
               storageClass: ""
-              accessModes: [ "ReadWriteOnce" ]
+              accessModes: ["ReadWriteOnce"]
             volumeClaimTemplates: []
             addVolumes: []
             addVolumeMounts: []
@@ -239,9 +242,11 @@ controlPlane:
       image: ""
       replicas: 1
       pods:
-       labels: {}
-       annotations: {}
+        labels: {}
+        annotations: {}
       nodeSelector: {}
+      affinity: {}
+      tolerations: []
       resources:
         limits:
           cpu: 1000m
@@ -250,12 +255,12 @@ controlPlane:
           cpu: 20m
           memory: 64Mi
       topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: kubernetes.io/hostname
-        whenUnsatisfiable: DoNotSchedule
-        labelSelector:
-          matchLabels:
-            k8s-app: kube-dns
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              k8s-app: kube-dns
 
   service:
     enabled: true
@@ -324,14 +329,14 @@ controlPlane:
         retentionPolicy: Retain
         size: 5Gi
         storageClass: ""
-        accessModes: [ "ReadWriteOnce" ]
+        accessModes: ["ReadWriteOnce"]
       volumeClaimTemplates: []
       addVolumeMounts: []
       addVolumes: []
       dataVolume: []
       binariesVolume:
-      - name: binaries
-        emptyDir: {}
+        - name: binaries
+          emptyDir: {}
 
     enableServiceLinks: true
 
@@ -382,6 +387,42 @@ controlPlane:
 
     globalMetadata:
       annotations: {}
+
+integrations:
+  metricsServer:
+    enabled: false
+    nodes: true
+    pods: true
+  externalSecrets:
+    enabled: false
+    webhook:
+      enabled: false
+    sync:
+      externalSecrets:
+        enabled: true
+      stores:
+        enabled: false
+      clusterStores:
+        enabled: false
+        selector:
+          labels: {}
+  kubeVirt:
+    enabled: false
+    webhook:
+      enabled: true
+    sync:
+      dataVolumes:
+        enabled: false
+      virtualMachines:
+        enabled: true
+      virtualMachineInstances:
+        enabled: true
+      virtualMachinePools:
+        enabled: true
+      virtualMachineClones:
+        enabled: true
+      virtualMachineInstanceMigrations:
+        enabled: true
 
 rbac:
   role:
@@ -442,6 +483,8 @@ policies:
       ephemeral-storage: 3Gi
       memory: 128Mi
       cpu: 100m
+    min: {}
+    max: {}
 
   networkPolicy:
     enabled: false
@@ -466,6 +509,11 @@ policies:
 exportKubeConfig:
   context: ""
   server: ""
+  insecure: false
+  serviceAccount:
+    name: ""
+    namespace: ""
+    clusterRole: ""
   secret:
     name: ""
     namespace: ""
@@ -480,7 +528,6 @@ experimental:
 
   syncSettings:
     disableSync: false
-    syncLabels: []
     rewriteKubernetesService: false
     targetNamespace: ""
     setOwner: true

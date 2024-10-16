@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -100,6 +101,13 @@ func (l *LoftStarter) success(ctx context.Context) error {
 }
 
 func (l *LoftStarter) pingLoftRouter(ctx context.Context, loftPod *corev1.Pod) (string, error) {
+	if l == nil {
+		return "", errors.New("nil LoftStarter")
+	}
+	if l.KubeClient == nil {
+		return "", errors.New("nil KubeClient")
+	}
+
 	loftRouterSecret, err := l.KubeClient.CoreV1().Secrets(loftPod.Namespace).Get(ctx, clihelper.LoftRouterDomainSecret, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
@@ -213,7 +221,7 @@ func (l *LoftStarter) printVClusterProGettingStarted(url string) {
 
 	if l.isLoggedIn(url) {
 		l.Log.Donef("You are successfully logged into vCluster Platform!")
-		l.Log.WriteString(logrus.InfoLevel, "- Use `vcluster create` to create a new virtual cluster\n")
+		l.Log.WriteString(logrus.InfoLevel, "- Use `vcluster platform create vcluster` to create a new virtual cluster\n")
 		l.Log.WriteString(logrus.InfoLevel, "- Use `vcluster platform add vcluster` to add an existing virtual cluster to a vCluster platform instance\n")
 	} else {
 		l.Log.Warnf("You are not logged into vCluster Platform yet, please run the below command to log into the vCluster Platform instance")
@@ -231,7 +239,7 @@ func (l *LoftStarter) waitForLoft(ctx context.Context) (*corev1.Pod, error) {
 	}
 
 	// ensure user admin secret is there
-	isNewPassword, err := clihelper.EnsureAdminPassword(ctx, l.KubeClient, l.RestConfig, l.Password, l.Log)
+	isNewPassword, err := clihelper.EnsureAdminPassword(ctx, l.KubeClient, l.RestConfig, l.Namespace, l.Password, l.Log)
 	if err != nil {
 		return nil, err
 	}

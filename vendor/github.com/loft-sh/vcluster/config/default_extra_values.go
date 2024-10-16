@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -25,46 +23,52 @@ const (
 
 // K3SVersionMap holds the supported k3s versions
 var K3SVersionMap = map[string]string{
+	"1.31": "rancher/k3s:v1.31.1-k3s1",
 	"1.30": "rancher/k3s:v1.30.2-k3s1",
 	"1.29": "rancher/k3s:v1.29.6-k3s1",
 	"1.28": "rancher/k3s:v1.28.11-k3s1",
-	"1.27": "rancher/k3s:v1.27.15-k3s1",
+	"1.27": "rancher/k3s:v1.27.16-k3s1",
 }
 
 // K0SVersionMap holds the supported k0s versions
 var K0SVersionMap = map[string]string{
+	"1.31": "k0sproject/k0s:v1.30.2-k0s.0",
 	"1.30": "k0sproject/k0s:v1.30.2-k0s.0",
 	"1.29": "k0sproject/k0s:v1.29.6-k0s.0",
 	"1.28": "k0sproject/k0s:v1.28.11-k0s.0",
-	"1.27": "k0sproject/k0s:v1.27.15-k0s.0",
+	"1.27": "k0sproject/k0s:v1.27.16-k0s.0",
 }
 
 // K8SAPIVersionMap holds the supported k8s api servers
 var K8SAPIVersionMap = map[string]string{
+	"1.31": "registry.k8s.io/kube-apiserver:v1.31.1",
 	"1.30": "registry.k8s.io/kube-apiserver:v1.30.2",
 	"1.29": "registry.k8s.io/kube-apiserver:v1.29.6",
 	"1.28": "registry.k8s.io/kube-apiserver:v1.28.11",
-	"1.27": "registry.k8s.io/kube-apiserver:v1.27.15",
+	"1.27": "registry.k8s.io/kube-apiserver:v1.27.16",
 }
 
 // K8SControllerVersionMap holds the supported k8s controller managers
 var K8SControllerVersionMap = map[string]string{
+	"1.31": "registry.k8s.io/kube-controller-manager:v1.31.1",
 	"1.30": "registry.k8s.io/kube-controller-manager:v1.30.2",
 	"1.29": "registry.k8s.io/kube-controller-manager:v1.29.6",
 	"1.28": "registry.k8s.io/kube-controller-manager:v1.28.11",
-	"1.27": "registry.k8s.io/kube-controller-manager:v1.27.15",
+	"1.27": "registry.k8s.io/kube-controller-manager:v1.27.16",
 }
 
 // K8SSchedulerVersionMap holds the supported k8s schedulers
 var K8SSchedulerVersionMap = map[string]string{
+	"1.31": "registry.k8s.io/kube-scheduler:v1.31.1",
 	"1.30": "registry.k8s.io/kube-scheduler:v1.30.2",
 	"1.29": "registry.k8s.io/kube-scheduler:v1.29.6",
 	"1.28": "registry.k8s.io/kube-scheduler:v1.28.11",
-	"1.27": "registry.k8s.io/kube-scheduler:v1.27.15",
+	"1.27": "registry.k8s.io/kube-scheduler:v1.27.16",
 }
 
 // K8SEtcdVersionMap holds the supported etcd
 var K8SEtcdVersionMap = map[string]string{
+	"1.31": "registry.k8s.io/etcd:3.5.15-0",
 	"1.30": "registry.k8s.io/etcd:3.5.13-0",
 	"1.29": "registry.k8s.io/etcd:3.5.10-0",
 	"1.28": "registry.k8s.io/etcd:3.5.9-0",
@@ -111,92 +115,9 @@ func getExtraValues(options *ExtraValuesOptions) (*Config, error) {
 		return nil, err
 	}
 
-	// apply k3s values
-	err = applyK3SExtraValues(vConfig, options)
-	if err != nil {
-		return nil, err
-	}
-
-	// apply k0s values
-	err = applyK0SExtraValues(vConfig, options)
-	if err != nil {
-		return nil, err
-	}
-
-	// apply k8s values
-	err = applyK8SExtraValues(vConfig, options)
-	if err != nil {
-		return nil, err
-	}
-
 	// add common release values
 	addCommonReleaseValues(vConfig, options)
 	return vConfig, nil
-}
-
-var replaceRegEx = regexp.MustCompile("[^0-9]+")
-
-func applyK3SExtraValues(vConfig *Config, options *ExtraValuesOptions) error {
-	// get k3s image
-	image, err := getImageByVersion(options.KubernetesVersion, K3SVersionMap)
-	if err != nil {
-		return err
-	}
-
-	// build values
-	if image != "" {
-		vConfig.ControlPlane.Distro.K3S.Image = parseImage(image)
-	}
-
-	return nil
-}
-
-func applyK0SExtraValues(vConfig *Config, options *ExtraValuesOptions) error {
-	// get k0s image
-	image, err := getImageByVersion(options.KubernetesVersion, K0SVersionMap)
-	if err != nil {
-		return err
-	}
-
-	// build values
-	if image != "" {
-		vConfig.ControlPlane.Distro.K0S.Image = parseImage(image)
-	}
-
-	return nil
-}
-
-func applyK8SExtraValues(vConfig *Config, options *ExtraValuesOptions) error {
-	// get api server image
-	apiImage, err := getImageByVersion(options.KubernetesVersion, K8SAPIVersionMap)
-	if err != nil {
-		return err
-	}
-
-	// get etcd image
-	etcdImage, err := getImageByVersion(options.KubernetesVersion, K8SEtcdVersionMap)
-	if err != nil {
-		return err
-	}
-
-	// build values
-	if apiImage != "" {
-		vConfig.ControlPlane.Distro.K8S.Version = parseImage(apiImage).Tag
-	}
-	if etcdImage != "" {
-		vConfig.ControlPlane.BackingStore.Etcd.Deploy.StatefulSet.Image = parseImage(etcdImage)
-	}
-
-	return nil
-}
-
-func parseImage(image string) Image {
-	registry, repository, tag := SplitImage(image)
-	return Image{
-		Registry:   registry,
-		Repository: repository,
-		Tag:        tag,
-	}
 }
 
 func SplitImage(image string) (string, string, string) {
@@ -219,54 +140,6 @@ func SplitImage(image string) (string, string, string) {
 	}
 
 	return registry, repository, imageSplitted[len(imageSplitted)-1]
-}
-
-func getImageByVersion(kubernetesVersion KubernetesVersion, versionImageMap map[string]string) (string, error) {
-	// check if there is a minor and major version
-	if kubernetesVersion.Minor == "" || kubernetesVersion.Major == "" {
-		return "", nil
-	}
-
-	// find highest and lowest supported version for this map
-	highestMinorVersion := 0
-	lowestMinorVersion := 0
-	for version := range versionImageMap {
-		kubeVersion, err := ParseKubernetesVersionInfo(version)
-		if err != nil {
-			return "", fmt.Errorf("parse kube version %s: %w", version, err)
-		}
-
-		minorVersion, err := strconv.Atoi(kubeVersion.Minor)
-		if err != nil {
-			return "", fmt.Errorf("convert minor version %s: %w", kubeVersion.Minor, err)
-		}
-
-		if lowestMinorVersion == 0 || minorVersion < lowestMinorVersion {
-			lowestMinorVersion = minorVersion
-		}
-		if highestMinorVersion == 0 || minorVersion > highestMinorVersion {
-			highestMinorVersion = minorVersion
-		}
-	}
-
-	// figure out what image to use
-	serverVersionString := getKubernetesVersion(kubernetesVersion)
-	serverMinorInt, err := getKubernetesMinorVersion(kubernetesVersion)
-	if err != nil {
-		return "", err
-	}
-
-	// try to get from map
-	image, ok := versionImageMap[serverVersionString]
-	if !ok {
-		if serverMinorInt > highestMinorVersion {
-			image = versionImageMap["1."+strconv.Itoa(highestMinorVersion)]
-		} else {
-			image = versionImageMap["1."+strconv.Itoa(lowestMinorVersion)]
-		}
-	}
-
-	return image, nil
 }
 
 func addCommonReleaseValues(config *Config, options *ExtraValuesOptions) {
@@ -302,14 +175,6 @@ func addCommonReleaseValues(config *Config, options *ExtraValuesOptions) {
 		case K8SDistro:
 		}
 	}
-}
-
-func getKubernetesVersion(serverVersion KubernetesVersion) string {
-	return replaceRegEx.ReplaceAllString(serverVersion.Major, "") + "." + replaceRegEx.ReplaceAllString(serverVersion.Minor, "")
-}
-
-func getKubernetesMinorVersion(serverVersion KubernetesVersion) (int, error) {
-	return strconv.Atoi(replaceRegEx.ReplaceAllString(serverVersion.Minor, ""))
 }
 
 func ParseKubernetesVersionInfo(versionStr string) (*KubernetesVersion, error) {

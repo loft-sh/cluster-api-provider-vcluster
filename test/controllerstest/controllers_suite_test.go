@@ -84,7 +84,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 				Spec: v1alpha1.VClusterSpec{
 					HelmRelease: &v1alpha1.VirtualClusterHelmRelease{
 						Chart: v1alpha1.VirtualClusterHelmChart{
-							Version: "0.20.0",
+							Version: "0.21.0",
 						},
 					},
 				},
@@ -141,7 +141,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					HelmRelease: &v1alpha1.VirtualClusterHelmRelease{
 						Chart: v1alpha1.VirtualClusterHelmChart{
 							Name:    "vcluster",
-							Version: "0.20.0",
+							Version: "0.21.0",
 						},
 						Values: string(yamlBytes),
 					},
@@ -199,7 +199,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					HelmRelease: &v1alpha1.VirtualClusterHelmRelease{
 						Chart: v1alpha1.VirtualClusterHelmChart{
 							Name:    "vcluster",
-							Version: "0.20.0",
+							Version: "0.21.0",
 						},
 						Values: string(yamlBytes),
 					},

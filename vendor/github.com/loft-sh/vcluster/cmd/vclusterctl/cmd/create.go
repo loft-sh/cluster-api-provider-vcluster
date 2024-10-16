@@ -3,6 +3,7 @@ package cmd
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/loft-sh/log"
@@ -44,12 +45,23 @@ Example:
 vcluster create test --namespace test
 #######################################################
 	`,
-		Args: util.VClusterNameOnlyValidator,
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			newArgs, err := util.PromptForArgs(cmd.log, args, "vcluster name")
+			if err != nil {
+				switch {
+				case errors.Is(err, util.ErrNonInteractive):
+					if err := util.VClusterNameOnlyValidator(cobraCmd, args); err != nil {
+						return err
+					}
+				default:
+					return err
+				}
+			}
+
 			// Check for newer version
 			upgrade.PrintNewerVersionWarning()
 
-			return cmd.Run(cobraCmd.Context(), args)
+			return cmd.Run(cobraCmd.Context(), newArgs)
 		},
 	}
 
@@ -66,6 +78,10 @@ vcluster create test --namespace test
 
 // Run executes the functionality
 func (cmd *CreateCmd) Run(ctx context.Context, args []string) error {
+	if !cmd.UpdateCurrent {
+		cmd.log.Warnf("%q has no effect anymore. Please consider using %q", "--update-current=false", "--connect=false")
+	}
+
 	cfg := cmd.LoadedConfig(cmd.log)
 
 	// If driver has been passed as flag use it, otherwise read it from the config file

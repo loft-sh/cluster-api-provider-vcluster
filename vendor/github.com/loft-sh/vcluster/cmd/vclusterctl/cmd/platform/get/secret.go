@@ -14,6 +14,7 @@ import (
 	"github.com/loft-sh/vcluster/pkg/cli/flags"
 	"github.com/loft-sh/vcluster/pkg/cli/util"
 	"github.com/loft-sh/vcluster/pkg/platform"
+	"github.com/loft-sh/vcluster/pkg/platform/clihelper"
 	pdefaults "github.com/loft-sh/vcluster/pkg/platform/defaults"
 	"github.com/loft-sh/vcluster/pkg/projectutil"
 	"github.com/pkg/errors"
@@ -111,7 +112,7 @@ func (cmd *SecretCmd) Run(ctx context.Context, args []string) error {
 	case set.ProjectSecret:
 		namespace = projectutil.ProjectNamespace(cmd.Project)
 	case set.SharedSecret:
-		namespace, err = set.GetSharedSecretNamespace(cmd.Namespace)
+		namespace, err = clihelper.VClusterPlatformInstallationNamespace(ctx)
 		if err != nil {
 			return errors.Wrap(err, "get shared secrets namespace")
 		}
@@ -203,9 +204,14 @@ func (cmd *SecretCmd) Run(ctx context.Context, args []string) error {
 				keyNames = append(keyNames, k)
 			}
 
+			defaultValue := ""
+			if len(keyNames) > 0 {
+				defaultValue = keyNames[0]
+			}
+
 			keyName, err = cmd.log.Question(&survey.QuestionOptions{
 				Question:     "Please select a secret key to read",
-				DefaultValue: keyNames[0],
+				DefaultValue: defaultValue,
 				Options:      keyNames,
 			})
 			if err != nil {
