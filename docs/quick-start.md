@@ -3,7 +3,7 @@ In this guide we will deploy Nginx in a kind cluster and verify connectivity wit
 
 ## Prerequisites
 Ensure that you have the following installed:
-- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) v1.7.4 or greater
+- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) v1.7.8 or greater
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - [kind](https://kind.sigs.k8s.io/)
 - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
