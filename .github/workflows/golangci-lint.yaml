@@ -27,15 +27,11 @@ jobs:
           go-version-file: "go.mod"
           cache: false
 
-      - name: Build logcheck plugin
-        run: go build -o "tools/logcheck.so" -mod=vendor -buildmode=plugin sigs.k8s.io/logtools/logcheck/plugin
-        env:
-          GOWORK: off
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
 
-      - name: Build golangci-lint
-        run: go build -o "tools/golangci-lint" -mod=vendor ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
+      - name: Build custom golangci-lint
+        run: golangci-lint custom
 
       - name: Run golangci-lint
-        run: tools/golangci-lint run --out-format=github-actions ./...
-        env:
-          LOGCHECK_CONFIG: hack/logcheck.conf
+        run: ./custom-gcl run

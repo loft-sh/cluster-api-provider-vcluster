@@ -219,7 +219,7 @@ func mirror(from Getter, targetCondition v1alpha1.ConditionType, options ...Mirr
 		case true:
 			condition = TrueCondition(targetCondition)
 		case false:
-			condition = FalseCondition(targetCondition, mirrorOpt.fallbackReason, mirrorOpt.fallbackSeverity, mirrorOpt.fallbackMessage)
+			condition = FalseCondition(targetCondition, mirrorOpt.fallbackReason, mirrorOpt.fallbackSeverity, "%s", mirrorOpt.fallbackMessage)
 		}
 	}
 
