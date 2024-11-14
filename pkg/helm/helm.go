@@ -190,7 +190,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	}
 
 	// Set values
-	if options.SetValues != nil && len(options.SetValues) > 0 {
+	if len(options.SetValues) > 0 {
 		args = append(args, "--set")
 
 		setString := ""
@@ -206,7 +206,7 @@ func (c *client) run(name, namespace string, options UpgradeOptions, command str
 	}
 
 	// Set string values
-	if options.SetStringValues != nil && len(options.SetStringValues) > 0 {
+	if len(options.SetStringValues) > 0 {
 		args = append(args, "--set-string")
 
 		setString := ""

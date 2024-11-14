@@ -1,0 +1,7 @@
+# This has to be >= v1.57.0 for module plugin system support.
+version: v1.61.0
+plugins:
+  - module: "sigs.k8s.io/logtools"
+    import: "sigs.k8s.io/logtools/logcheck/gclplugin"
+    version: v0.9.0
+
