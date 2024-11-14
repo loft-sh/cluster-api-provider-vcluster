@@ -63,9 +63,10 @@ var _ = ginkgo.Describe("e2e test", func() {
 					Debug:     true,
 				},
 				ConnectOptions: cli.ConnectOptions{
-					UpdateCurrent: false,
-					KubeConfig:    vKubeconfigFile.Name(),
-					LocalPort:     localPort, // choosing a port that usually should be unused
+					UpdateCurrent:   false,
+					KubeConfig:      vKubeconfigFile.Name(),
+					LocalPort:       localPort, // choosing a port that usually should be unused
+					BackgroundProxy: true,
 				},
 			}
 			err = cli.ConnectHelm(ctx, &connectCmd.ConnectOptions, connectCmd.GlobalFlags, name, nil, connectCmd.Log)
