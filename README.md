@@ -8,7 +8,7 @@ This is a [Cluster API](https://cluster-api.sigs.k8s.io/introduction.html) provi
 # Installation instructions
 
 Prerequisites:
-- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) (v1.7.8+)
+- [clusterctl](https://cluster-api.sigs.k8s.io/user/quick-start.html#install-clusterctl) (v1.9.2+)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 - A Kubernetes cluster where you will have cluster-admin permissions
 - Optional, depending on how you expose the vcluster instance - [vcluster CLI](https://www.vcluster.com/docs/getting-started/setup)
