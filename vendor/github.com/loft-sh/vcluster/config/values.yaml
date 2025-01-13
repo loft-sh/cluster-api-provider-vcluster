@@ -217,7 +217,6 @@ controlPlane:
           enabled: true
           annotations: {}
         headlessService:
-          enabled: true
           annotations: {}
 
   proxy:
@@ -260,7 +259,7 @@ controlPlane:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              k8s-app: kube-dns
+              k8s-app: vcluster-kube-dns
 
   service:
     enabled: true
@@ -423,6 +422,19 @@ integrations:
         enabled: true
       virtualMachineInstanceMigrations:
         enabled: true
+  certManager:
+    enabled: false
+    sync:
+      toHost:
+        certificates:
+          enabled: true
+        issuers:
+          enabled: true
+      fromHost:
+        clusterIssuers:
+          enabled: true
+          selector:
+            labels: {}
 
 rbac:
   role:
