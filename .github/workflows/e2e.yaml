@@ -113,7 +113,7 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k3s
           export CLUSTER_NAMESPACE=vcluster-k3s
-          export CHART_VERSION=0.21.0
+          export CHART_VERSION=0.22.1
           export VCLUSTER_YAML=$(cat ./test/e2e/k3s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
           cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
@@ -129,7 +129,7 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k0s
           export CLUSTER_NAMESPACE=vcluster-k0s
-          export CHART_VERSION=0.21.0
+          export CHART_VERSION=0.22.1
           export CHART_NAME=vcluster
           export VCLUSTER_YAML=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}
@@ -146,7 +146,7 @@ jobs:
         run: |
           export CLUSTER_NAME=vcluster-k8s
           export CLUSTER_NAMESPACE=vcluster-k8s
-          export CHART_VERSION=0.21.0
+          export CHART_VERSION=0.22.1
           export CHART_NAME=vcluster
           export VCLUSTER_YAML=$(cat ./test/e2e/k8s-values.yaml | sed -z 's/\n/\\n/g')
           kubectl create namespace ${CLUSTER_NAMESPACE}

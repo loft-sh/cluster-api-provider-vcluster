@@ -111,7 +111,7 @@ spec:
       #
       # Please refer to the vcluster Releases page for the list of the available versions:
       # https://github.com/loft-sh/vcluster/releases
-      version: ${CHART_VERSION:=0.21.0}
+      version: ${CHART_VERSION:=0.22.1}
 
   # controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
   # You may leave this field empty, and then CAPVC will try to fill in this information based
@@ -165,7 +165,7 @@ In the example commands below, the VCLUSTER_YAML variable will be populated with
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.21.0
+export CHART_VERSION=0.22.1
 export CHART_NAME=vcluster
 export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
@@ -187,7 +187,7 @@ You can specify a custom version of the vCluster Helm chart by setting the CHART
 Example:
 
 ```shell
-export CHART_VERSION=0.21.0
+export CHART_VERSION=0.22.1
 ```
 
 ## Specifying custom values for virtual clusters

@@ -65,6 +65,14 @@ const timeoutEnvVariable = "LOFT_TIMEOUT"
 
 var defaultDeploymentName = "loft"
 
+var DefaultClusterRoles = []string{
+	"loft-agent-cluster",
+	"loft-runner-cluster",
+	"loft-vcluster-cluster",
+	"loft-cluster-authenticated",
+	"loft-management-authenticated",
+}
+
 func Timeout() time.Duration {
 	if timeout := os.Getenv(timeoutEnvVariable); timeout != "" {
 		if parsedTimeout, err := time.ParseDuration(timeout); err == nil {
@@ -444,7 +452,14 @@ func IsLoftAlreadyInstalled(ctx context.Context, kubeClient kubernetes.Interface
 		}
 	}
 
-	_, err := kubeClient.AppsV1().Deployments(namespace).Get(ctx, defaultDeploymentName, metav1.GetOptions{})
+	_, err := kubeClient.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if kerrors.IsNotFound(err) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("failed to get namespace %q", namespace)
+	}
+
+	_, err = kubeClient.AppsV1().Deployments(namespace).Get(ctx, defaultDeploymentName, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return false, nil
@@ -455,6 +470,8 @@ func IsLoftAlreadyInstalled(ctx context.Context, kubeClient kubernetes.Interface
 
 	return true, nil
 }
+
+var ErrPlatformNamespaceNotFound = errors.New("vCluster Platform installation namespace not found")
 
 func VClusterPlatformInstallationNamespace(ctx context.Context) (string, error) {
 	kubeClientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{})
@@ -486,7 +503,7 @@ func VClusterPlatformInstallationNamespace(ctx context.Context) (string, error) 
 		}
 	}
 
-	return "", fmt.Errorf("failed to find the namespace loft is installed in")
+	return "", ErrPlatformNamespaceNotFound
 }
 
 func UninstallLoft(ctx context.Context, kubeClient kubernetes.Interface, restConfig *rest.Config, kubeContext, namespace string, log log.Logger) error {
