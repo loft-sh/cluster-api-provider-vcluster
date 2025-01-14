@@ -128,3 +128,5 @@ jobs:
           cache: false
       - name: Run go install
         run: go install github.com/loft-sh/cluster-api-provider-vcluster@"$RELEASE_VERSION"
+        env:
+          RELEASE_VERSION: ${{ steps.get_version.outputs.release_version }}
