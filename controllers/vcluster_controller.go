@@ -26,15 +26,15 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/loft-sh/vcluster/pkg/util"
-	"github.com/loft-sh/vcluster/pkg/util/kubeconfig"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -490,7 +490,7 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 }
 
 func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCluster *v1alpha1.VCluster) (*api.Config, error) {
-	secretName := kubeconfig.DefaultSecretPrefix + vCluster.Name
+	secretName := "vc-" + vCluster.Name
 
 	secret := &corev1.Secret{}
 	err := clusterClient.Get(ctx, types.NamespacedName{Namespace: vCluster.Namespace, Name: secretName}, secret)
@@ -498,7 +498,7 @@ func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCl
 		return nil, err
 	}
 
-	kcBytes, ok := secret.Data[kubeconfig.KubeconfigSecretKey]
+	kcBytes, ok := secret.Data["config"]
 	if !ok {
 		return nil, fmt.Errorf("couldn't find kube config in vcluster secret")
 	}
@@ -617,7 +617,7 @@ func EnsureFinalizer(ctx context.Context, client client.Client, obj client.Objec
 // SetupWithManager sets up the controller with the Manager.
 func (r *VClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
-	r.clusterKindExists, err = util.KindExists(mgr.GetConfig(), clusterv1beta1.GroupVersion.WithKind("Cluster"))
+	r.clusterKindExists, err = kindExists(mgr.GetConfig(), clusterv1beta1.GroupVersion.WithKind("Cluster"))
 	if err != nil {
 		return err
 	}
@@ -625,4 +625,28 @@ func (r *VClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.VCluster{}).
 		Complete(r)
+}
+
+func kindExists(config *rest.Config, groupVersionKind schema.GroupVersionKind) (bool, error) {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return false, err
+	}
+
+	resources, err := discoveryClient.ServerResourcesForGroupVersion(groupVersionKind.GroupVersion().String())
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return false, nil
+		}
+
+		return false, err
+	}
+
+	for _, r := range resources.APIResources {
+		if r.Kind == groupVersionKind.Kind {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
