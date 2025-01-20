@@ -75,6 +75,11 @@ jobs:
           chmod +x ./kubectl
           sudo mv ./kubectl /usr/local/bin/kubectl
 
+          # Install vcluster
+          curl -Lo vcluster https://github.com/loft-sh/vcluster/releases/download/v0.22.3/vcluster-linux-amd64
+          chmod +x ./vcluster
+          sudo mv ./vcluster /usr/local/bin/vcluster
+
           # Install DevSpace
           curl -fsSL -o /tmp/devspace https://github.com/devspace-cloud/devspace/releases/latest/download/devspace-linux-amd64
           chmod +x /tmp/devspace
@@ -122,6 +127,14 @@ jobs:
         run: |
           kubectl wait --for=condition=ready vcluster -n vcluster-k3s vcluster-k3s --timeout=100s
 
+      - name: Connect to vcluster and install nginx
+        run: |
+          vcluster -n vcluster-k3s connect vcluster-k3s --background-proxy=true
+          kubectl create namespace demo-nginx
+          kubectl -n demo-nginx create deployment nginx-deployment --image=nginx
+          kubectl -n demo-nginx rollout status deployment/nginx-deployment --timeout=100s
+          vcluster disconnect
+
       - name: Create Vcluster Custom Resource K0S
         run: |
           export CLUSTER_NAME=vcluster-k0s
@@ -135,6 +148,14 @@ jobs:
       - name: Validate Resource Ready K0S
         run: |
           kubectl wait --for=condition=ready vcluster -n vcluster-k0s vcluster-k0s --timeout=100s
+
+      - name: Connect to vcluster and install nginx
+        run: |
+          vcluster -n vcluster-k0s connect vcluster-k0s --background-proxy=true
+          kubectl create namespace demo-nginx
+          kubectl -n demo-nginx create deployment nginx-deployment --image=nginx
+          kubectl -n demo-nginx rollout status deployment/nginx-deployment --timeout=100s
+          vcluster disconnect
 
       - name: Create Vcluster Custom Resource K8S
         run: |
@@ -150,3 +171,10 @@ jobs:
         run: |
           kubectl wait --for=condition=ready vcluster -n vcluster-k8s vcluster-k8s --timeout=100s
 
+      - name: Connect to vcluster and install nginx
+        run: |
+          vcluster -n vcluster-k8s connect vcluster-k8s --background-proxy=true
+          kubectl create namespace demo-nginx
+          kubectl -n demo-nginx create deployment nginx-deployment --image=nginx
+          kubectl -n demo-nginx rollout status deployment/nginx-deployment --timeout=100s
+          vcluster disconnect
