@@ -1,0 +1,40 @@
+name: bump-vcluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  bump-vcluster-chart:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Replace vcluster chart version
+        env:
+          VCLUSTER_RELEASE_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          # Replace the old vcluster chart release with the new one in all relevant files
+          sed -i "s/\${\(CHART_VERSION:=\)\([0-9]\+\.[0-9]\+\.[0-9]\+\)}/\${\1${VCLUSTER_RELEASE_VERSION#v}}/" README.md templates/cluster-template.yaml
+          sed -i "s/\(CHART_VERSION=\)\([0-9]\+\.[0-9]\+\.[0-9]\+\)/\1${VCLUSTER_RELEASE_VERSION#v}/" README.md .github/workflows/e2e.yaml
+          sed -i "s/\([ ]*Version: \"\)\([0-9]\+\.[0-9]\+\.[0-9]\+\)\"/\1${VCLUSTER_RELEASE_VERSION#v}\"/" test/controllerstest/controllers_suite_test.go
+
+      - name: Create pull request
+        env:
+          VCLUSTER_RELEASE_VERSION: ${{ github.event.inputs.version }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          # TODO: Replace GITHUB_TOKEN with PAT with correct permissions
+          token: ${{ secrets.GITHUB_TOKEN }}
+          committer: Loft Bot <loft-bot@users.noreply.github.com>
+          branch: bump-vcluster
+          commit-message: "chore: bump vcluster chart to ${{ env.VCLUSTER_RELEASE_VERSION }}"
+          title: "chore: bump vcluster chart to ${{ env.VCLUSTER_RELEASE_VERSION }}"
+          body: Triggered by ${{ github.repository }}@${{ github.sha }}
+          signoff: true
+          delete-branch: true
+
