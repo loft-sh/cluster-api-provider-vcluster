@@ -261,45 +261,48 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		"clusterName", vCluster.Name,
 	)
 
-	var chartRepo string
-	if vCluster.Spec.HelmRelease != nil {
+	chartRepo := constants.DefaultVClusterRepo
+	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Repo != "" {
 		chartRepo = vCluster.Spec.HelmRelease.Chart.Repo
 	}
-	if chartRepo == "" {
-		chartRepo = constants.DefaultVClusterRepo
-	}
 
-	// chart name
-	var chartName string
-	if vCluster.Spec.HelmRelease != nil {
+	chartName := constants.DefaultVClusterChartName
+	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Name != "" {
 		chartName = vCluster.Spec.HelmRelease.Chart.Name
 	}
-	if chartName == "" {
-		chartName = constants.DefaultVClusterChartName
+
+	var chartVersion string
+	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Chart.Version != "" {
+		chartVersion = vCluster.Spec.HelmRelease.Chart.Version
+		// Remove 'v' prefix if present
+		if len(chartVersion) > 0 && chartVersion[0] == 'v' {
+			chartVersion = chartVersion[1:]
+		}
 	}
 
-	if vCluster.Spec.HelmRelease == nil || vCluster.Spec.HelmRelease.Chart.Version == "" {
-		return fmt.Errorf("empty value of the .spec.HelmRelease.Version field")
-	}
-	// chart version
-	chartVersion := vCluster.Spec.HelmRelease.Chart.Version
-
-	if len(chartVersion) > 0 && chartVersion[0] == 'v' {
-		chartVersion = chartVersion[1:]
-	}
-
-	// determine values
+	// Get values
 	var values string
-	if vCluster.Spec.HelmRelease != nil || vCluster.Spec.HelmRelease.Values == "" {
+	if vCluster.Spec.HelmRelease != nil && vCluster.Spec.HelmRelease.Values != "" {
 		values = vCluster.Spec.HelmRelease.Values
 	}
 
 	r.Log.Info("Deploy virtual cluster",
 		"namespace", vCluster.Namespace,
 		"clusterName", vCluster.Name,
+		"chartRepo", chartRepo,
+		"chartName", chartName,
+		"chartVersion", chartVersion,
 		"values", values,
 	)
-	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
+
+	// Construct chart path
+	var chartPath string
+	if chartVersion != "" {
+		chartPath = fmt.Sprintf("./%s-%s.tgz", chartName, chartVersion)
+	} else {
+		chartPath = fmt.Sprintf("./%s-latest.tgz", chartName)
+	}
+
 	_, err := os.Stat(chartPath)
 	if err != nil {
 		// we have to upgrade / install the chart
