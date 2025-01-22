@@ -405,7 +405,16 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 		return nil, err
 	}
 
-	kubeSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: fmt.Sprintf("%s-kubeconfig", vCluster.Name), Namespace: vCluster.Namespace}}
+	kubeSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-kubeconfig", vCluster.Name),
+			Namespace: vCluster.Namespace,
+			Labels: map[string]string{
+				clusterv1beta1.ClusterNameLabel: vCluster.Name,
+			},
+		},
+		Type: clusterv1beta1.ClusterSecretType,
+	}
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, kubeSecret, func() error {
 		if kubeSecret.Data == nil {
 			kubeSecret.Data = make(map[string][]byte)
@@ -484,12 +493,13 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 	}
 
 	if host == "" {
-		host = fmt.Sprintf("%s.%s.svc", vCluster.Name, vCluster.Namespace)
+		host = fmt.Sprintf("%s.%s", vCluster.Name, vCluster.Namespace)
 	}
 	return host, nil
 }
 
 func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCluster *v1alpha1.VCluster) (*api.Config, error) {
+	// NOTE: The prefix must be kept in sync with https://github.com/loft-sh/vcluster/blob/main/pkg/util/kubeconfig/kubeconfig.go#L29
 	secretName := "vc-" + vCluster.Name
 
 	secret := &corev1.Secret{}
@@ -498,6 +508,7 @@ func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCl
 		return nil, err
 	}
 
+	// NOTE: The Data map key must be kept in sync with https://github.com/loft-sh/vcluster/blob/main/pkg/util/kubeconfig/kubeconfig.go#L30
 	kcBytes, ok := secret.Data["config"]
 	if !ok {
 		return nil, fmt.Errorf("couldn't find kube config in vcluster secret")
