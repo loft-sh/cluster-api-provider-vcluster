@@ -76,7 +76,7 @@ jobs:
           sudo mv ./kubectl /usr/local/bin/kubectl
 
           # Install vcluster
-          curl -Lo vcluster https://github.com/loft-sh/vcluster/releases/download/v0.22.3/vcluster-linux-amd64
+          curl -Lo vcluster https://github.com/loft-sh/vcluster/releases/latest/download/vcluster-linux-amd64
           chmod +x ./vcluster
           sudo mv ./vcluster /usr/local/bin/vcluster
 
