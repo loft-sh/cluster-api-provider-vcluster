@@ -21,7 +21,8 @@ clusterctl init --infrastructure vcluster
 
 Next you will generate a manifest file for a vcluster instance and create it in the management cluster.
 Cluster instance is configured using clusterctl parameters and environment variables - CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT.
-In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `values.yaml` file.
+In the example commands below will install the latest vcluster chart (because CHART_VERSION was omitted) and the VCLUSTER_YAML variable will be populated
+with the contents of the `values.yaml` file.
 ```shell
 export CLUSTER_NAME=vcluster
 export CLUSTER_NAMESPACE=vcluster
@@ -105,13 +106,10 @@ spec:
       # vcluster, and the "/charts/k3s" folder in the vcluster GitHub repo.
       # Other available options currently are: "vcluster-k8s", "vcluster-k0s" and "vcluster-eks".
       name: ${CHART_NAME:=vcluster}
-      # By default, a particular vcluster version is used in a given CAPVC release. You may find
-      # it out from the source code, e.g.: 
-      # https://github.com/loft-sh/cluster-api-provider-vcluster/blob/v0.1.3/pkg/constants/constants.go#L7
-      #
+      # By default the latest stable vcluster version is used.
       # Please refer to the vcluster Releases page for the list of the available versions:
       # https://github.com/loft-sh/vcluster/releases
-      version: ${CHART_VERSION:=0.22.1}
+      version: ${CHART_VERSION:=""}
 
   # controlPlaneEndpoint represents the endpoint used to communicate with the control plane.
   # You may leave this field empty, and then CAPVC will try to fill in this information based
@@ -160,12 +158,11 @@ go run -mod vendor main.go
 ```
 
 Next, in a separate terminal you will generate a manifest file for a vcluster instance.
-Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CHART_VERSION and CLUSTER_NAME variables are mandatory.
+Cluster instance is configured from a template file using environment variables - CLUSTER_NAME, CHART_NAME, CHART_REPO, CHART_VERSION, VCLUSTER_HOST and VCLUSTER_PORT. Only the CLUSTER_NAME variable is mandatory.
 In the example commands below, the VCLUSTER_YAML variable will be populated with the contents of the `devvalues.yaml` file, don't forget to re-run the `export VCLUSTER_YAML...` command when the `devvalues.yaml` changes.
 ```shell
 export CLUSTER_NAME=test
 export CLUSTER_NAMESPACE=test
-export CHART_VERSION=0.22.1
 export CHART_NAME=vcluster
 export VCLUSTER_YAML=$(cat devvalues.yaml | awk '{printf "%s\\n", $0}')
 kubectl create namespace ${CLUSTER_NAMESPACE}
