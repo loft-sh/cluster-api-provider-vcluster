@@ -5,6 +5,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ConditionType is a valid value for Condition.Type.
+type ConditionType string
+
 // Common ConditionTypes used by Cluster API objects.
 const (
 	// ReadyCondition defines the Ready condition type that summarizes the operational state of the vcluster API object.
@@ -23,6 +26,7 @@ const (
 // ConditionSeverity expresses the severity of a Condition Type failing.
 type ConditionSeverity string
 
+// Condition severity levels
 const (
 	// ConditionSeverityError specifies that a condition with `Status=False` is an error.
 	ConditionSeverityError ConditionSeverity = "Error"
@@ -39,9 +43,6 @@ const (
 
 // Conditions is an array of conditions
 type Conditions []Condition
-
-// ConditionType is a valid value for Condition.Type.
-type ConditionType string
 
 // Condition defines an observation of a Cluster API resource operational state.
 type Condition struct {
