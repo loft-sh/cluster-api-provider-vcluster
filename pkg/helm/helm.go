@@ -80,7 +80,6 @@ func (c *client) exec(args []string) error {
 		return nil
 	}
 
-	fmt.Println("helm " + strings.Join(args, " "))
 	cmd := exec.Command(c.helmPath, args...)
 	if c.stdout != nil {
 		cmd.Stdout = c.stdout
