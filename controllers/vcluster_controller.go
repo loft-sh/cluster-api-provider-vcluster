@@ -227,37 +227,65 @@ func (r *VClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_
 }
 
 func (r *VClusterReconciler) reconcilePhase(vCluster *v1alpha1.VCluster) {
-	if vCluster.Status.Phase != v1alpha1.VirtualClusterPending {
-		vCluster.Status.Phase = v1alpha1.VirtualClusterPending
-	}
+	logger := r.Log
+	oldPhase := vCluster.Status.Phase
 
-	if vCluster.Status.Ready && conditions.IsTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition) {
-		vCluster.Status.Phase = v1alpha1.VirtualClusterDeployed
-	}
-
-	// set failed if a condition is errored
-	vCluster.Status.Reason = ""
-	vCluster.Status.Message = ""
-	for _, c := range vCluster.Status.Conditions {
-		if c.Status == corev1.ConditionFalse && c.Severity == v1alpha1.ConditionSeverityError {
+	// Check for failed state first
+	for _, condition := range vCluster.Status.Conditions {
+		if condition.Status == corev1.ConditionFalse && condition.Severity == v1alpha1.ConditionSeverityError {
 			vCluster.Status.Phase = v1alpha1.VirtualClusterFailed
-			vCluster.Status.Reason = c.Reason
-			vCluster.Status.Message = c.Message
+			vCluster.Status.Reason = condition.Reason
+			vCluster.Status.Message = condition.Message
 			break
 		}
+	}
+
+	// If not failed, check if deployed or pending
+	if vCluster.Status.Phase != v1alpha1.VirtualClusterFailed {
+		if vCluster.Status.Ready && conditions.IsTrue(vCluster, v1alpha1.ControlPlaneInitializedCondition) {
+			vCluster.Status.Phase = v1alpha1.VirtualClusterDeployed
+		} else {
+			vCluster.Status.Phase = v1alpha1.VirtualClusterPending
+		}
+	}
+
+	// Log phase transitions
+	if oldPhase != vCluster.Status.Phase {
+		logger.Info("vcluster phase changed",
+			"namespace", vCluster.Namespace,
+			"name", vCluster.Name,
+			"oldPhase", oldPhase,
+			"newPhase", vCluster.Status.Phase,
+			"reason", vCluster.Status.Reason,
+			"message", vCluster.Status.Message,
+		)
 	}
 }
 
 func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alpha1.VCluster) error {
-	// upgrade chart
-	if vCluster.Generation == vCluster.Status.ObservedGeneration && conditions.IsTrue(vCluster, v1alpha1.HelmChartDeployedCondition) {
+	if vCluster.Generation == vCluster.Status.ObservedGeneration &&
+		conditions.IsTrue(vCluster, v1alpha1.HelmChartDeployedCondition) {
 		return nil
 	}
 
-	r.Log.V(1).Info("upgrade virtual cluster helm chart",
-		"namespace", vCluster.Namespace,
-		"clusterName", vCluster.Name,
-	)
+	logger := r.Log
+
+	var values string
+	if vCluster.Spec.HelmRelease != nil || vCluster.Spec.HelmRelease.Values == "" {
+		values = vCluster.Spec.HelmRelease.Values
+	}
+	if !conditions.IsTrue(vCluster, v1alpha1.HelmChartDeployedCondition) {
+		logger.Info("deploying vcluster",
+			"namespace", vCluster.Namespace,
+			"clusterName", vCluster.Name,
+			"values", values,
+		)
+	} else {
+		logger.V(1).Info("upgrading vcluster",
+			"namespace", vCluster.Namespace,
+			"clusterName", vCluster.Name,
+		)
+	}
 
 	var chartRepo string
 	if vCluster.Spec.HelmRelease != nil {
@@ -286,17 +314,6 @@ func (r *VClusterReconciler) redeployIfNeeded(_ context.Context, vCluster *v1alp
 		chartVersion = chartVersion[1:]
 	}
 
-	// determine values
-	var values string
-	if vCluster.Spec.HelmRelease != nil || vCluster.Spec.HelmRelease.Values == "" {
-		values = vCluster.Spec.HelmRelease.Values
-	}
-
-	r.Log.Info("Deploy virtual cluster",
-		"namespace", vCluster.Namespace,
-		"clusterName", vCluster.Name,
-		"values", values,
-	)
 	chartPath := "./" + chartName + "-" + chartVersion + ".tgz"
 	_, err := os.Stat(chartPath)
 	if err != nil {
