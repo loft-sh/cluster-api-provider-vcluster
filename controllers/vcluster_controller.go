@@ -56,8 +56,7 @@ type ClientConfigGetter interface {
 	NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error)
 }
 
-type clientConfigGetter struct {
-}
+type clientConfigGetter struct{}
 
 func (c *clientConfigGetter) NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(restConfig)
@@ -71,8 +70,7 @@ type HTTPClientGetter interface {
 	ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client
 }
 
-type httpClientGetter struct {
-}
+type httpClientGetter struct{}
 
 func (h *httpClientGetter) ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client {
 	return &http.Client{
@@ -414,12 +412,11 @@ func (r *VClusterReconciler) syncVClusterKubeconfig(ctx context.Context, vCluste
 			},
 		},
 		Type: clusterv1beta1.ClusterSecretType,
+		Data: map[string][]byte{
+			KubeconfigDataName: outKubeConfig,
+		},
 	}
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, kubeSecret, func() error {
-		if kubeSecret.Data == nil {
-			kubeSecret.Data = make(map[string][]byte)
-		}
-		kubeSecret.Data[KubeconfigDataName] = outKubeConfig
 		return nil
 	})
 	if err != nil {
