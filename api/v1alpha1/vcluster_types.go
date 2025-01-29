@@ -43,10 +43,12 @@ type VClusterStatus struct {
 
 	// Ready defines if the virtual cluster control plane is ready.
 	// +optional
+	// +kubebuilder:default=false
 	Ready bool `json:"ready"`
 
 	// Initialized defines if the virtual cluster control plane was initialized.
 	// +optional
+	// +kubebuilder:default=false
 	Initialized bool `json:"initialized"`
 
 	// Phase describes the current phase the virtual cluster is in
@@ -70,6 +72,10 @@ type VClusterStatus struct {
 	// ObservedGeneration is the latest generation observed by the controller.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// KubernetesVersion is the version of Kubernetes running in the virtual cluster
+	// +optional
+	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
 }
 
 // GetConditions returns the set of conditions for this object.
@@ -107,18 +113,30 @@ type VirtualClusterHelmChart struct {
 }
 
 // VirtualClusterPhase describes the phase of a virtual cluster
+// +kubebuilder:validation:Enum="";Pending;Deployed;Failed
 type VirtualClusterPhase string
 
-// These are the valid admin account types
 const (
-	VirtualClusterUnknown  VirtualClusterPhase = ""
-	VirtualClusterPending  VirtualClusterPhase = "Pending"
+	// VirtualClusterUnknown represents an unknown phase
+	VirtualClusterUnknown VirtualClusterPhase = ""
+
+	// VirtualClusterPending indicates the cluster is being created
+	VirtualClusterPending VirtualClusterPhase = "Pending"
+
+	// VirtualClusterDeployed indicates the cluster is fully deployed and operational
 	VirtualClusterDeployed VirtualClusterPhase = "Deployed"
-	VirtualClusterFailed   VirtualClusterPhase = "Failed"
+
+	// VirtualClusterFailed indicates the cluster deployment has failed
+	VirtualClusterFailed VirtualClusterPhase = "Failed"
 )
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Version",type="string",JSONPath=".spec.helmRelease.chart.version"
+//+kubebuilder:printcolumn:name="Ready",type="boolean",JSONPath=".status.ready"
+//+kubebuilder:printcolumn:name="Phase",type="string",JSONPath=".status.phase"
+//+kubebuilder:printcolumn:name="Message",type="string",JSONPath=".status.message"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // VCluster is the Schema for the vclusters API
 type VCluster struct {
