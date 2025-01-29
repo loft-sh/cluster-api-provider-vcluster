@@ -56,8 +56,7 @@ type ClientConfigGetter interface {
 	NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error)
 }
 
-type clientConfigGetter struct {
-}
+type clientConfigGetter struct{}
 
 func (c *clientConfigGetter) NewForConfig(restConfig *rest.Config) (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(restConfig)
@@ -71,8 +70,7 @@ type HTTPClientGetter interface {
 	ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client
 }
 
-type httpClientGetter struct {
-}
+type httpClientGetter struct{}
 
 func (h *httpClientGetter) ClientFor(r http.RoundTripper, timeout time.Duration) *http.Client {
 	return &http.Client{
@@ -450,6 +448,20 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 	if string(body) != "ok" {
 		return false, nil
 	}
+
+	// If readiness check passed, get the version info
+	kubeClient, err := r.ClientConfigGetter.NewForConfig(restConfig)
+	if err != nil {
+		return true, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	version, err := kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		return true, fmt.Errorf("failed to get kubernetes version: %w", err)
+	}
+
+	// Update the status with version information
+	vCluster.Status.KubernetesVersion = version.GitVersion
 
 	return true, nil
 }
