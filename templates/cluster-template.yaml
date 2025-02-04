@@ -22,7 +22,7 @@ spec:
     chart: 
       name: ${CHART_NAME:=vcluster}
       repo: ${CHART_REPO:=https://charts.loft.sh}
-      version: ${CHART_VERSION:=0.22.1}
+      version: ${CHART_VERSION:=""}
   controlPlaneEndpoint:
     host: ${VCLUSTER_HOST:=""}
     port: ${VCLUSTER_PORT:=0}
