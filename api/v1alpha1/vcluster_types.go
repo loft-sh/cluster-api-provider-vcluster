@@ -72,6 +72,10 @@ type VClusterStatus struct {
 	// ObservedGeneration is the latest generation observed by the controller.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// KubernetesVersion is the version of Kubernetes running in the virtual cluster
+	// +optional
+	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
 }
 
 // GetConditions returns the set of conditions for this object.
