@@ -10,12 +10,12 @@ WORKDIR /workspace
 RUN if [ "${TARGETARCH}" = "amd64" ]; then go install github.com/go-delve/delve/cmd/dlv@latest; fi
 
 # Install Helm 3
-RUN curl -s https://get.helm.sh/helm-v3.11.1-linux-amd64.tar.gz > helm3.tar.gz \
- && tar -zxvf helm3.tar.gz linux-amd64/helm \
- && chmod +x linux-amd64/helm \
- && mv linux-amd64/helm $PWD/helm \
+RUN curl -s https://get.helm.sh/helm-v3.11.1-${TARGETOS}-${TARGETARCH}.tar.gz > helm3.tar.gz \
+ && tar -zxvf helm3.tar.gz ${TARGETOS}-${TARGETARCH}/helm \
+ && chmod +x ${TARGETOS}-${TARGETARCH}/helm \
+ && mv ${TARGETOS}-${TARGETARCH}/helm $PWD/helm \
  && rm helm3.tar.gz \
- && rm -R linux-amd64
+ && rm -R ${TARGETOS}-${TARGETARCH}
 
 # Copy the Go Modules manifests
 COPY go.mod go.mod
