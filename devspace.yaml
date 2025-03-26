@@ -7,6 +7,9 @@ vars:
 images:
   provider:
     image: ${IMAGE}
+    buildArgs:
+      TARGETOS: linux
+      TARGETARCH: amd64
     rebuildStrategy: ignoreContextChanges
     docker: {}
     target: builder
