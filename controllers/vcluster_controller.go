@@ -471,6 +471,20 @@ func (r *VClusterReconciler) checkReadyz(vCluster *v1alpha1.VCluster, restConfig
 		return false, nil
 	}
 
+	// If readiness check passed, get the version info
+	kubeClient, err := r.ClientConfigGetter.NewForConfig(restConfig)
+	if err != nil {
+		return true, fmt.Errorf("failed to create kubernetes client: %w", err)
+	}
+
+	version, err := kubeClient.Discovery().ServerVersion()
+	if err != nil {
+		return true, fmt.Errorf("failed to get kubernetes version: %w", err)
+	}
+
+	// Update the status with version information
+	vCluster.Status.KubernetesVersion = version.GitVersion
+
 	return true, nil
 }
 
