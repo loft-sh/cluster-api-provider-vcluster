@@ -124,32 +124,11 @@ jobs:
 
       - name: Validate Resource Ready K3S
         run: |
-          kubectl wait --for=condition=ready vcluster -n vcluster-k3s vcluster-k3s --timeout=100s
+          kubectl wait --for=condition=ready vcluster.infrastructure.cluster.x-k8s.io -n vcluster-k3s vcluster-k3s --timeout=100s
 
       - name: Connect to vcluster and install nginx
         run: |
           vcluster -n vcluster-k3s connect vcluster-k3s --background-proxy=true
-          kubectl create namespace demo-nginx
-          kubectl -n demo-nginx create deployment nginx-deployment --image=nginx
-          kubectl -n demo-nginx rollout status deployment/nginx-deployment --timeout=100s
-          vcluster disconnect
-
-      - name: Create Vcluster Custom Resource K0S
-        run: |
-          export CLUSTER_NAME=vcluster-k0s
-          export CLUSTER_NAMESPACE=vcluster-k0s
-          export CHART_NAME=vcluster
-          export VCLUSTER_YAML=$(cat ./test/e2e/k0s-values.yaml | sed -z 's/\n/\\n/g')
-          kubectl create namespace ${CLUSTER_NAMESPACE}
-          cat templates/cluster-template.yaml | ./bin/envsubst | kubectl apply -n ${CLUSTER_NAMESPACE} -f -
-
-      - name: Validate Resource Ready K0S
-        run: |
-          kubectl wait --for=condition=ready vcluster -n vcluster-k0s vcluster-k0s --timeout=100s
-
-      - name: Connect to vcluster and install nginx
-        run: |
-          vcluster -n vcluster-k0s connect vcluster-k0s --background-proxy=true
           kubectl create namespace demo-nginx
           kubectl -n demo-nginx create deployment nginx-deployment --image=nginx
           kubectl -n demo-nginx rollout status deployment/nginx-deployment --timeout=100s
@@ -166,7 +145,7 @@ jobs:
 
       - name: Validate Resource Ready K8S
         run: |
-          kubectl wait --for=condition=ready vcluster -n vcluster-k8s vcluster-k8s --timeout=100s
+          kubectl wait --for=condition=ready vcluster.infrastructure.cluster.x-k8s.io -n vcluster-k8s vcluster-k8s --timeout=100s
 
       - name: Connect to vcluster and install nginx
         run: |

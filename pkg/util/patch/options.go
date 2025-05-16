@@ -13,7 +13,7 @@ limitations under the License.
 
 package patch
 
-import v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+import v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 
 // Option is some configuration that modifies options for a patch request.
 type Option interface {

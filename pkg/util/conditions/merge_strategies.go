@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"strings"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 )
 
 // mergeOptions allows to set strategies for merging a set of conditions into a single condition,

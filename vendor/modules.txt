@@ -70,6 +70,9 @@ github.com/beorn7/perks/quantile
 # github.com/bkielbasa/cyclop v1.2.1
 ## explicit; go 1.20
 github.com/bkielbasa/cyclop/pkg/analyzer
+# github.com/blang/semver/v4 v4.0.0
+## explicit; go 1.14
+github.com/blang/semver/v4
 # github.com/blizzy78/varnamelen v0.8.0
 ## explicit; go 1.16
 github.com/blizzy78/varnamelen
@@ -230,6 +233,9 @@ github.com/go-viper/mapstructure/v2
 # github.com/go-xmlfmt/xmlfmt v1.1.2
 ## explicit
 github.com/go-xmlfmt/xmlfmt
+# github.com/gobuffalo/flect v1.0.3
+## explicit; go 1.16
+github.com/gobuffalo/flect
 # github.com/gobwas/glob v0.2.3
 ## explicit
 github.com/gobwas/glob
@@ -1170,6 +1176,7 @@ k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.31.3
 ## explicit; go 1.22.0
 k8s.io/apiserver/pkg/authentication/user
+k8s.io/apiserver/pkg/storage/names
 # k8s.io/client-go v0.31.3
 ## explicit; go 1.22.0
 k8s.io/client-go/applyconfigurations
@@ -1548,7 +1555,15 @@ mvdan.cc/unparam/check
 # sigs.k8s.io/cluster-api v1.9.3
 ## explicit; go 1.22.0
 sigs.k8s.io/cluster-api/api/v1beta1
+sigs.k8s.io/cluster-api/controllers/external
 sigs.k8s.io/cluster-api/errors
+sigs.k8s.io/cluster-api/util
+sigs.k8s.io/cluster-api/util/annotations
+sigs.k8s.io/cluster-api/util/conditions
+sigs.k8s.io/cluster-api/util/contract
+sigs.k8s.io/cluster-api/util/labels
+sigs.k8s.io/cluster-api/util/labels/format
+sigs.k8s.io/cluster-api/util/predicates
 # sigs.k8s.io/controller-runtime v0.19.3
 ## explicit; go 1.22.0
 sigs.k8s.io/controller-runtime

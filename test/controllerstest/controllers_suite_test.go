@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	controlplanev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/controlplane/v1alpha1"
+	"github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
@@ -46,7 +47,7 @@ func TestRunControllersTests(t *testing.T) {
 var _ = ginkgo.Describe("Vcluster Controller test", func() {
 	ginkgo.Context("Reconcile", func() {
 		var (
-			reconciler *controllers.VClusterReconciler
+			reconciler *controllers.GenericReconciler
 			ctx        context.Context
 			scheme     *runtime.Scheme
 			hemlClient *MockHelmClient
@@ -56,6 +57,8 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 		ginkgo.BeforeEach(func() {
 			scheme = runtime.NewScheme()
 			err := v1alpha1.AddToScheme(scheme)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			err = controlplanev1alpha1.AddToScheme(scheme)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			err = corev1.AddToScheme(scheme)
@@ -100,7 +103,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			}, metav1.CreateOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			reconciler = &controllers.VClusterReconciler{
+			reconciler = &controllers.GenericReconciler{
 				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
 				HelmClient: hemlClient,
 				Scheme:     scheme,
@@ -108,6 +111,9 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					fake: f,
 				},
 				HTTPClientGetter: &fakeHTTPClientGetter{},
+				New: func() controllers.GenericVCluster {
+					return &v1alpha1.VCluster{}
+				},
 			}
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
@@ -117,7 +123,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Minute))
+			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Second * 5))
 		})
 
 		ginkgo.It("reconcile successfully on k3s", func() {
@@ -158,7 +164,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			}, metav1.CreateOptions{})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-			reconciler = &controllers.VClusterReconciler{
+			reconciler = &controllers.GenericReconciler{
 				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
 				HelmClient: hemlClient,
 				Scheme:     scheme,
@@ -166,6 +172,9 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					fake: f,
 				},
 				HTTPClientGetter: &fakeHTTPClientGetter{},
+				New: func() controllers.GenericVCluster {
+					return &v1alpha1.VCluster{}
+				},
 			}
 			req := ctrl.Request{
 				NamespacedName: types.NamespacedName{
@@ -175,67 +184,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			}
 			result, err := reconciler.Reconcile(ctx, req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Minute))
+			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Second * 5))
 		})
-
-		ginkgo.It("reconcile successfully on k0s", func() {
-			values := map[string]any{
-				"controlPlane": map[string]any{
-					"distro": map[string]any{
-						"k0s": map[string]bool{
-							"enabled": true,
-						},
-					},
-				},
-			}
-			yamlBytes, yamlErr := yaml.Marshal(&values)
-			gomega.Expect(yamlErr).NotTo(gomega.HaveOccurred())
-			vCluster := &v1alpha1.VCluster{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-vcluster",
-					Namespace: "default",
-				},
-				Spec: v1alpha1.VClusterSpec{
-					HelmRelease: &v1alpha1.VirtualClusterHelmRelease{
-						Chart: v1alpha1.VirtualClusterHelmChart{
-							Name:    "vcluster",
-							Version: "0.22.1",
-						},
-						Values: string(yamlBytes),
-					},
-				},
-			}
-			hemlClient.On("Upgrade").Return(nil)
-			f := fakeclientset.NewSimpleClientset()
-
-			_, err := f.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "default",
-					Namespace: "default",
-				},
-			}, metav1.CreateOptions{})
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-
-			reconciler = &controllers.VClusterReconciler{
-				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
-				HelmClient: hemlClient,
-				Scheme:     scheme,
-				ClientConfigGetter: &fakeConfigGetter{
-					fake: f,
-				},
-				HTTPClientGetter: &fakeHTTPClientGetter{},
-			}
-			req := ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Name:      vCluster.Name,
-					Namespace: vCluster.Namespace,
-				},
-			}
-			result, err := reconciler.Reconcile(ctx, req)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Minute))
-		})
-
 	})
-
 })

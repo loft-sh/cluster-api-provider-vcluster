@@ -29,7 +29,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: docker.io/loftsh/cluster-api-provider-vcluster
+        image: ghcr.io/loft-sh/cluster-api-provider-vcluster
         imagePullPolicy: IfNotPresent
         name: manager
         securityContext:

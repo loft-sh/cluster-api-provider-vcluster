@@ -19,7 +19,7 @@ import (
 	"reflect"
 	"time"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/conditions"
 
 	"github.com/pkg/errors"

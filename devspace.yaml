@@ -6,6 +6,7 @@ vars:
 
 images:
   provider:
+    dockerfile: ./Dockerfile.devspace
     image: ${IMAGE}
     buildArgs:
       TARGETOS: linux

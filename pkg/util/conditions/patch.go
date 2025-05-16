@@ -16,7 +16,7 @@ package conditions
 import (
 	"reflect"
 
-	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/v1alpha1"
+	v1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
