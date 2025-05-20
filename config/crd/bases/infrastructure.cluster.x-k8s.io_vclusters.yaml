@@ -91,6 +91,10 @@ spec:
                   values:
                     description: the values for the given chart
                     type: string
+                  valuesObject:
+                    description: the values for the given chart
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
                 type: object
             type: object
           status:
@@ -142,6 +146,11 @@ spec:
                   - type
                   type: object
                 type: array
+              externalManagedControlPlane:
+                description: |-
+                  ExternalManagedControlPlane is required by Cluster API to indicate that the control plane
+                  is externally managed.
+                type: boolean
               initialized:
                 default: false
                 description: Initialized defines if the virtual cluster control plane

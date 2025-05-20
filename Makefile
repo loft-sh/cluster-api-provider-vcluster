@@ -1,7 +1,7 @@
 
 TAG ?= main
 # Image URL to use all building/pushing image targets
-IMG ?= docker.io/loftsh/cluster-api-provider-vcluster:$(TAG)
+IMG ?= ghcr.io/loft-sh/cluster-api-provider-vcluster:$(TAG)
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.23
 
@@ -11,6 +11,8 @@ GOBIN=$(shell go env GOPATH)/bin
 else
 GOBIN=$(shell go env GOBIN)
 endif
+
+TARGETARCH ?= $(shell go env GOARCH)
 
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
@@ -71,12 +73,23 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 .PHONY: docker-build
-docker-build: test ## Build docker image with the manager.
-	docker build -t ${IMG} .
+docker-build: manifests generate fmt vet envtest ## Build docker image with the manager.
+	rm -r release || true
+	mkdir -p release
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(TARGETARCH) go build -o release/manager main.go
+	docker buildx build --platform linux/$(TARGETARCH) --load -t ${IMG} .
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.
 	docker push ${IMG}
+
+.PHONY: combine-images
+combine-images: ## Combines the manifests and pushes them
+	@echo "Combining images..."
+	docker manifest create $(IMG) \
+                --amend $(IMG)-amd64 \
+                --amend $(IMG)-arm64
+	docker manifest push $(IMG)
 
 ##@ Deployment
 
@@ -106,7 +119,7 @@ CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
 	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.16.0)
 
-KUSTOMIZE = $(shell pwd)/bin/kustomize
+KUSTOMIZE = $(shell which kustomize || echo $(shell pwd)/bin/kustomize)
 .PHONY: kustomize
 kustomize: ## Download kustomize locally if necessary.
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v5@v5.3.0)
@@ -139,7 +152,32 @@ release: manifests kustomize ## Builds the manifests to publish with a release.
 	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
 	cp templates/cluster-template* $(RELEASE_DIR)/
 	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
-# revert the values back to development ones 
-	sed -i'' -e 's@image: .*@image: docker.io/loftsh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
+	sed -i'' -e 's@image: .*@image: ghcr.io/loft-sh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
 	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
 	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml
+
+# Make sure to use the right remote TARGETARCH via make deploy-via-local-registry TARGETARCH=amd64
+.PHONY: deploy-via-local-registry
+deploy-via-local-registry: docker-build # Pushes the locally build image into the target cluster into a local-registry.
+	# Deploy registry
+	kubectl apply -f hack/local-registry/local-registry.yaml
+	# Wait for registry
+	@echo "Wait until local docker registry is up..."
+	@until eval "kubectl wait --for=condition=ready pod -l app=docker-registry -n docker-registry" >/dev/null 2>&1; do \
+		sleep 1; \
+	done
+	# Start port-forward in the background and store its PID
+	kubectl -n docker-registry port-forward service/docker-registry-service 30115:5000 >/dev/null 2>&1 & \
+	  PORT_FORWARD_PID=$$!; \
+	  echo "Started port-forward with PID=$$PORT_FORWARD_PID"; \
+	  # Give the port-forward a moment to initialize
+	  sleep 2; \
+	  # Tag the image for the local registry
+	  docker tag $(IMG) localhost:30115/cluster-api-provider-vcluster:$(TAG); \
+	  # Push the image to the local registry
+	  docker push localhost:30115/cluster-api-provider-vcluster:$(TAG); \
+	  # Kill the port-forward process
+	  kill $$PORT_FORWARD_PID || true
+	# Delete the existing controller
+	kubectl delete po -l control-plane=cluster-api-provider-vcluster-controller-manager -n cluster-api-provider-vcluster-system --ignore-not-found
+	$(KUSTOMIZE) build config/dev | kubectl apply -f -

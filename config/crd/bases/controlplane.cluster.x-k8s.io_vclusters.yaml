@@ -1,0 +1,193 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.0
+  name: vclusters.controlplane.cluster.x-k8s.io
+spec:
+  group: controlplane.cluster.x-k8s.io
+  names:
+    kind: VCluster
+    listKind: VClusterList
+    plural: vclusters
+    singular: vcluster
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.helmRelease.chart.version
+      name: Version
+      type: string
+    - jsonPath: .status.ready
+      name: Ready
+      type: boolean
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.message
+      name: Message
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VCluster is the Schema for the vclusters API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VClusterSpec defines the desired state of VCluster
+            properties:
+              controlPlaneEndpoint:
+                description: ControlPlaneEndpoint represents the endpoint used to
+                  communicate with the control plane.
+                properties:
+                  host:
+                    description: The hostname on which the API server is serving.
+                    type: string
+                  port:
+                    description: The port on which the API server is serving.
+                    format: int32
+                    type: integer
+                required:
+                - host
+                - port
+                type: object
+              helmRelease:
+                description: |-
+                  The helm release configuration for the virtual cluster. This is optional, but
+                  when filled, specified chart will be deployed.
+                properties:
+                  chart:
+                    description: infos about what chart to deploy
+                    properties:
+                      name:
+                        description: the name of the helm chart
+                        type: string
+                      repo:
+                        description: the repo of the helm chart
+                        type: string
+                      version:
+                        description: the version of the helm chart to use
+                        type: string
+                    type: object
+                  values:
+                    description: the values for the given chart
+                    type: string
+                  valuesObject:
+                    description: the values for the given chart
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
+            type: object
+          status:
+            description: VClusterStatus defines the observed state of VCluster
+            properties:
+              conditions:
+                description: Conditions holds several conditions the vcluster might
+                  be in
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        Last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed. If that is not known, then using the time when
+                        the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A human readable message indicating details about the transition.
+                        This field may be empty.
+                      type: string
+                    reason:
+                      description: |-
+                        The reason for the condition's last transition in CamelCase.
+                        The specific API may choose whether this field is considered a guaranteed API.
+                        This field may not be empty.
+                      type: string
+                    severity:
+                      description: |-
+                        Severity provides an explicit classification of Reason code, so the users or machines can immediately
+                        understand the current situation and act accordingly.
+                        The Severity field MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: |-
+                        Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                        can be useful (see .node.status.conditions), the ability to deconflict is important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              externalManagedControlPlane:
+                description: |-
+                  ExternalManagedControlPlane is required by Cluster API to indicate that the control plane
+                  is externally managed.
+                type: boolean
+              initialized:
+                default: false
+                description: Initialized defines if the virtual cluster control plane
+                  was initialized.
+                type: boolean
+              message:
+                description: |-
+                  Message describes the reason in human readable form why the cluster is in the currrent
+                  phase
+                type: string
+              observedGeneration:
+                description: ObservedGeneration is the latest generation observed
+                  by the controller.
+                format: int64
+                type: integer
+              phase:
+                description: Phase describes the current phase the virtual cluster
+                  is in
+                enum:
+                - ""
+                - Pending
+                - Deployed
+                - Failed
+                type: string
+              ready:
+                default: false
+                description: Ready defines if the virtual cluster control plane is
+                  ready.
+                type: boolean
+              reason:
+                description: |-
+                  Reason describes the reason in machine readable form why the cluster is in the current
+                  phase
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

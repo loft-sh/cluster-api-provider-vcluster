@@ -1,0 +1,123 @@
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 10.243.0.0/16
+    services:
+      cidrBlocks:
+      - 10.95.0.0/16
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1alpha1
+    kind: VCluster
+    name: "${CLUSTER_NAME}"
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    kind: KubevirtCluster
+    name: "${CLUSTER_NAME}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+  annotations:
+    cluster.x-k8s.io/managed-by: vcluster
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha1
+kind: VCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  helmRelease:
+    valuesObject:
+      privateNodes:
+        enabled: true
+      networking:
+        podCIDR: 10.243.0.0/16
+        serviceCIDR: 10.95.0.0/16
+      controlPlane:
+        distro:
+          k8s:
+            image:
+              tag: "${KUBERNETES_VERSION}"
+        statefulSet:
+          imagePullPolicy: Always
+          image:
+            registry: ${VCLUSTER_IMAGE_REGISTRY:=ghcr.io}
+            repository: ${VCLUSTER_IMAGE_REPOSITORY:=loft-sh/vcluster-pro}
+            tag: ${VCLUSTER_IMAGE_TAG:=""}
+    chart: 
+      name: ${CHART_NAME:=vcluster}
+      repo: ${CHART_REPO:=https://charts.loft.sh}
+      version: ${VCLUSTER_VERSION:=""}
+  controlPlaneEndpoint:
+    host: ${VCLUSTER_HOST:=""}
+    port: ${VCLUSTER_PORT:=0}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: KubevirtMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      virtualMachineBootstrapCheck:
+        checkStrategy: ssh
+      virtualMachineTemplate:
+        spec:
+          runStrategy: Always
+          template:
+            spec:
+              domain:
+                cpu:
+                  cores: 2
+                devices:
+                  disks:
+                  - disk:
+                      bus: virtio
+                    name: containervolume
+                  networkInterfaceMultiqueue: true
+                memory:
+                  guest: 4Gi
+              evictionStrategy: External
+              volumes:
+              - containerDisk:
+                  image: quay.io/capk/ubuntu-2404-container-disk:v1.32.1
+                name: containervolume
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs: {}
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterName: ${CLUSTER_NAME}
+  replicas: 1
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: ${CLUSTER_NAME}
+      clusterName: test
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+        kind: KubevirtMachineTemplate
+        name: ${CLUSTER_NAME}
+      version: v1.32.1
