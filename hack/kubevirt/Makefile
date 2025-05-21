@@ -2,12 +2,12 @@
 create-vcluster:
 	kubectl create namespace test || true
 	
-	VCLUSTER_VERSION=v0.26.0-alpha.4 \
+	VCLUSTER_VERSION=v0.26.0-alpha.5 \
 	clusterctl generate cluster test --kubernetes-version v1.31.2 -n test --from file://$$(pwd)/template.yaml | kubectl apply -f -
 
 .PHONY: delete-vcluster
 delete-vcluster:
-	VCLUSTER_VERSION=v0.26.0-alpha.4 \
+	VCLUSTER_VERSION=v0.26.0-alpha.5 \
 	clusterctl generate cluster test --kubernetes-version v1.31.2 -n test --from file://$$(pwd)/template.yaml | kubectl delete --ignore-not-found -f -
 
 .PHONY: install-capa
@@ -26,6 +26,12 @@ install-capa:
 	kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/$${KV_VER}/kubevirt-operator.yaml" && \
 	kubectl apply -f "https://github.com/kubevirt/kubevirt/releases/download/$${KV_VER}/kubevirt-cr.yaml" && \
 	kubectl wait -n kubevirt kv kubevirt --for=condition=Available --timeout=10m
-
+	
+	# 3) Install KubeVirt CDI
+	CDI_TAG=$$(curl -s -w %{redirect_url} https://github.com/kubevirt/containerized-data-importer/releases/latest) && \
+	CDI_VERSION=$$(echo $${CDI_TAG##*/}) && \
+	kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-operator.yaml && \	
+	kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-cr.yaml
+	
 	# 3) Init capi
 	clusterctl init --infrastructure kubevirt
