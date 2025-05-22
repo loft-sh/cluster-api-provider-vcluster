@@ -30,8 +30,8 @@ install-capa:
 	# 3) Install KubeVirt CDI
 	CDI_TAG=$$(curl -s -w %{redirect_url} https://github.com/kubevirt/containerized-data-importer/releases/latest) && \
 	CDI_VERSION=$$(echo $${CDI_TAG##*/}) && \
-	kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-operator.yaml && \	
-	kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-cr.yaml
+	kubectl apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-operator.yaml && \
+	kubectl apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/$$CDI_VERSION/cdi-cr.yaml
 	
 	# 3) Init capi
 	clusterctl init --infrastructure kubevirt

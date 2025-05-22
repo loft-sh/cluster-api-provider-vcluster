@@ -86,6 +86,8 @@ docker-push: ## Push docker image with the manager.
 .PHONY: combine-images
 combine-images: ## Combines the manifests and pushes them
 	@echo "Combining images..."
+	docker push $(IMG)-amd64
+	docker push $(IMG)-arm64
 	docker manifest create $(IMG) \
                 --amend $(IMG)-amd64 \
                 --amend $(IMG)-arm64
