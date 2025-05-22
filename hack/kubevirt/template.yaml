@@ -33,6 +33,7 @@ metadata:
 spec:
   helmRelease:
     valuesObject:
+      pro: true
       privateNodes:
         enabled: true
       networking:
