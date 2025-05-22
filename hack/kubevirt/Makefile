@@ -2,12 +2,12 @@
 create-vcluster:
 	kubectl create namespace test || true
 	
-	VCLUSTER_VERSION=v0.26.0-alpha.5 \
+	VCLUSTER_VERSION=v0.26.0-alpha.6 \
 	clusterctl generate cluster test --kubernetes-version v1.31.2 -n test --from file://$$(pwd)/template.yaml | kubectl apply -f -
 
 .PHONY: delete-vcluster
 delete-vcluster:
-	VCLUSTER_VERSION=v0.26.0-alpha.5 \
+	VCLUSTER_VERSION=v0.26.0-alpha.6 \
 	clusterctl generate cluster test --kubernetes-version v1.31.2 -n test --from file://$$(pwd)/template.yaml | kubectl delete --ignore-not-found -f -
 
 .PHONY: install-capa

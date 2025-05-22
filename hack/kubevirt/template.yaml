@@ -6,7 +6,7 @@ spec:
   clusterNetwork:
     pods:
       cidrBlocks:
-      - 10.243.0.0/16
+      - 10.244.0.0/16
     services:
       cidrBlocks:
       - 10.95.0.0/16
@@ -37,7 +37,7 @@ spec:
       privateNodes:
         enabled: true
       networking:
-        podCIDR: 10.243.0.0/16
+        podCIDR: 10.244.0.0/16
         serviceCIDR: 10.95.0.0/16
       controlPlane:
         distro:
@@ -122,7 +122,7 @@ metadata:
   name: ${CLUSTER_NAME}
 spec:
   clusterName: ${CLUSTER_NAME}
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels: null
   template:
