@@ -8,5 +8,5 @@ spec:
     spec:
       containers:
       # Change the value of image field below to your controller image URL
-      - image: docker.io/loftsh/cluster-api-provider-vcluster:main
+      - image: ghcr.io/loft-sh/cluster-api-provider-vcluster:main
         name: manager

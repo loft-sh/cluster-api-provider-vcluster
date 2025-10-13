@@ -3,6 +3,9 @@
 # It should be run by config/default
 resources:
 - bases/infrastructure.cluster.x-k8s.io_vclusters.yaml
+- bases/infrastructure.cluster.x-k8s.io_vnodeclusters.yaml
+- bases/infrastructure.cluster.x-k8s.io_vnodemachines.yaml
+- bases/infrastructure.cluster.x-k8s.io_vnodemachinetemplates.yaml
 - bases/controlplane.cluster.x-k8s.io_vclusters.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 

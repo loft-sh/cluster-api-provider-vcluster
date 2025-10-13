@@ -122,7 +122,7 @@ metadata:
   name: ${CLUSTER_NAME}
 spec:
   clusterName: ${CLUSTER_NAME}
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels: null
   template:

@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
@@ -150,7 +151,17 @@ func (h *Helper) patch(ctx context.Context, obj client.Object) error {
 	if err != nil {
 		return err
 	}
-	return h.client.Patch(ctx, afterObject, client.MergeFrom(beforeObject))
+
+	rawPatch := client.MergeFrom(beforeObject)
+	patchBytes, err := rawPatch.Data(afterObject)
+	if err != nil {
+		return err
+	} else if string(patchBytes) == "{}" {
+		return nil
+	}
+
+	logPatch(ctx, "Apply metadata/spec patch", obj, patchBytes)
+	return h.client.Patch(ctx, afterObject, client.RawPatch(rawPatch.Type(), patchBytes))
 }
 
 // patchStatus issues a patch if the status has changed.
@@ -162,7 +173,17 @@ func (h *Helper) patchStatus(ctx context.Context, obj client.Object) error {
 	if err != nil {
 		return err
 	}
-	return h.client.Status().Patch(ctx, afterObject, client.MergeFrom(beforeObject))
+
+	rawPatch := client.MergeFrom(beforeObject)
+	patchBytes, err := rawPatch.Data(afterObject)
+	if err != nil {
+		return err
+	} else if string(patchBytes) == "{}" {
+		return nil
+	}
+
+	logPatch(ctx, "Apply status patch", obj, patchBytes)
+	return h.client.Status().Patch(ctx, afterObject, client.RawPatch(rawPatch.Type(), patchBytes))
 }
 
 // patchStatusConditions issues a patch if there are any changes to the conditions slice under
@@ -235,8 +256,16 @@ func (h *Helper) patchStatusConditions(ctx context.Context, obj client.Object, f
 			return false, err
 		}
 
+		patchBytes, err := conditionsPatch.Data(latest)
+		if err != nil {
+			return false, err
+		} else if string(patchBytes) == "{}" {
+			return false, nil
+		}
+		logPatch(ctx, "Apply conditions patch", latest, patchBytes)
+
 		// Issue the patch.
-		err := h.client.Status().Patch(ctx, latest, conditionsPatch)
+		err = h.client.Status().Patch(ctx, latest, client.RawPatch(conditionsPatch.Type(), patchBytes))
 		switch {
 		case kerrors.IsConflict(err):
 			// Requeue.
@@ -303,4 +332,8 @@ func checkNilObject(obj client.Object) error {
 		return errors.Errorf("expected non-nil object")
 	}
 	return nil
+}
+
+func logPatch(ctx context.Context, patchMessage string, obj client.Object, patchBytes []byte) {
+	klog.FromContext(ctx).Info(patchMessage, "kind", obj.GetObjectKind().GroupVersionKind().Kind, "object", obj.GetNamespace()+"/"+obj.GetName(), "patch", string(patchBytes))
 }

@@ -2,7 +2,7 @@ version: v2beta1
 name: cluster-api-provider-vcluster
 
 vars:
-  IMAGE: loftsh/cluster-api-provider-vcluster
+  IMAGE: ghcr.io/loft-sh/cluster-api-provider-vcluster
 
 images:
   provider:
@@ -17,7 +17,7 @@ images:
 
 deployments:
   provider:
-    namespace: cluster-api-provider-vcluster-system
+    namespace: capv-system
     updateImageTags: true
     kubectl:
       kustomize: true
@@ -26,7 +26,7 @@ deployments:
       - config/crd/
 dev:
   provider:
-    namespace: cluster-api-provider-vcluster-system
+    namespace: capv-system
     imageSelector: ${IMAGE}
     workingDir: /workspace
     terminal:
@@ -51,9 +51,9 @@ dev:
 
 commands:
   dev: |-
-    devspace run-pipeline dev -n cluster-api-provider-vcluster-system $@
+    devspace run-pipeline dev -n capv-system $@
   deploy: |-
-    devspace run-pipeline --profile deploy -n cluster-api-provider-vcluster-system -d $@
+    devspace run-pipeline --profile deploy -n capv-system -d $@
 
 profiles:
   - name: deploy
