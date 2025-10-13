@@ -34,7 +34,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	clusterv1beta1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -129,7 +129,7 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 	// ensure finalizer
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("ensure finalizer: %w", err)
 	}
 
 	// Initialize the patch helper.
@@ -202,6 +202,9 @@ func (r *GenericReconciler) reconcilePhase(vCluster GenericVCluster) {
 	oldPhase := vCluster.GetStatus().Phase
 
 	// Check for failed state first
+	vCluster.GetStatus().Phase = infrastructurev1alpha1.VirtualClusterPending
+	vCluster.GetStatus().Reason = ""
+	vCluster.GetStatus().Message = ""
 	for _, condition := range vCluster.GetStatus().Conditions {
 		if condition.Status == corev1.ConditionFalse && condition.Severity == infrastructurev1alpha1.ConditionSeverityError {
 			vCluster.GetStatus().Phase = infrastructurev1alpha1.VirtualClusterFailed
@@ -378,13 +381,22 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 
 	// If vcluster.spec.controlPlaneEndpoint.Host is not set, try to autodiscover it from
 	// the Service that targets vcluster pods, and write it back into the spec.
-	controlPlaneHost := vCluster.GetSpec().ControlPlaneEndpoint.Host
+	controlPlaneEndpoint := vCluster.GetSpec().ControlPlaneEndpoint
+	if controlPlaneEndpoint == nil {
+		controlPlaneEndpoint = &clusterv1.APIEndpoint{}
+	}
+
+	controlPlaneHost := controlPlaneEndpoint.Host
 	if controlPlaneHost == "" {
 		controlPlaneHost, err = DiscoverHostFromService(ctx, r.Client, vCluster)
 		if err != nil {
 			return nil, err
 		}
+
 		// write the discovered host back into vCluster CR
+		if vCluster.GetSpec().ControlPlaneEndpoint == nil {
+			vCluster.GetSpec().ControlPlaneEndpoint = &clusterv1.APIEndpoint{}
+		}
 		vCluster.GetSpec().ControlPlaneEndpoint.Host = controlPlaneHost
 		if vCluster.GetSpec().ControlPlaneEndpoint.Port == 0 {
 			vCluster.GetSpec().ControlPlaneEndpoint.Port = DefaultControlPlanePort
@@ -405,6 +417,7 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 		}
 		kubeConfig.Clusters[k].Server = host
 	}
+
 	outKubeConfig, err := clientcmd.Write(*kubeConfig)
 	if err != nil {
 		return nil, err
@@ -427,12 +440,12 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 			Name:      fmt.Sprintf("%s-kubeconfig", clusterName),
 			Namespace: vCluster.GetNamespace(),
 			Labels: map[string]string{
-				clusterv1beta1.ClusterNameLabel: clusterName,
+				clusterv1.ClusterNameLabel: clusterName,
 			},
 		},
 	}
 	_, err = controllerutil.CreateOrPatch(ctx, r.Client, kubeSecret, func() error {
-		kubeSecret.Type = clusterv1beta1.ClusterSecretType
+		kubeSecret.Type = clusterv1.ClusterSecretType
 		kubeSecret.Data = map[string][]byte{
 			KubeconfigDataName: outKubeConfig,
 		}
@@ -453,7 +466,7 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 			Name:      fmt.Sprintf("%s-ca", clusterName),
 			Namespace: vCluster.GetNamespace(),
 			Labels: map[string]string{
-				clusterv1beta1.ClusterNameLabel: clusterName,
+				clusterv1.ClusterNameLabel: clusterName,
 			},
 		},
 	}
@@ -499,7 +512,7 @@ func (r *GenericReconciler) checkReadyz(vCluster GenericVCluster, restConfig *re
 // SetupWithManager sets up the controller with the Manager.
 func (r *GenericReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	var err error
-	r.clusterKindExists, err = kindExists(mgr.GetConfig(), clusterv1beta1.GroupVersion.WithKind("Cluster"))
+	r.clusterKindExists, err = kindExists(mgr.GetConfig(), clusterv1.GroupVersion.WithKind("Cluster"))
 	if err != nil {
 		return err
 	}

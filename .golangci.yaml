@@ -25,7 +25,6 @@ linters:
     - misspell
     - nakedret
     - nilnil
-    - prealloc
     - promlinter
     - revive
     - staticcheck

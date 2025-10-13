@@ -1,0 +1,117 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 10.244.0.0/16
+    services:
+      cidrBlocks:
+      - 10.95.0.0/16
+  controlPlaneRef:
+    apiGroup: controlplane.cluster.x-k8s.io
+    kind: VCluster
+    name: "${CLUSTER_NAME}"
+  infrastructureRef:
+    apiGroup: infrastructure.cluster.x-k8s.io
+    kind: VNodeCluster
+    name: "${CLUSTER_NAME}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VNodeCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha1
+kind: VCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  helmRelease:
+    valuesObject:
+      pro: true
+      privateNodes:
+        enabled: true
+      networking:
+        podCIDR: 10.244.0.0/16
+        serviceCIDR: 10.95.0.0/16
+      controlPlane:
+        distro:
+          k8s:
+            version: "${KUBERNETES_VERSION}"
+    chart: 
+      name: ${CHART_NAME:=vcluster}
+      repo: ${CHART_REPO:=https://charts.loft.sh}
+      version: ${VCLUSTER_VERSION:=""}
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+kind: VNodeMachineTemplate
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      podTemplate:
+        spec:
+          terminationGracePeriodSeconds: 1
+          containers:
+            - name: pod-node
+              image: ghcr.io/fabiankramm/pod-node
+              securityContext:
+                privileged: true
+              volumeMounts:
+                - name: run
+                  mountPath: /run
+                - name: var-containerd
+                  mountPath: /var/lib/containerd
+                - name: var-kubelet
+                  mountPath: /var/lib/kubelet
+          volumes:
+            - name: var-kubelet
+              emptyDir: {}
+            - name: var-containerd
+              emptyDir: {}
+            - name: run
+              emptyDir: {}
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+          - name: cloud-provider
+            value: external
+          - name: node-ip
+            value: 0.0.0.0
+      preKubeadmCommands:
+      - "curl -sfL https://raw.githubusercontent.com/loft-sh/init-node/main/init.sh | sh -s -- --kubernetes-version ${KUBERNETES_VERSION}"
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDeployment
+metadata:
+  name: ${CLUSTER_NAME}
+spec:
+  clusterName: ${CLUSTER_NAME}
+  replicas: 1
+  selector:
+    matchLabels: null
+  template:
+    spec:
+      bootstrap:
+        configRef:
+          apiGroup: bootstrap.cluster.x-k8s.io
+          kind: KubeadmConfigTemplate
+          name: ${CLUSTER_NAME}
+      clusterName: test
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: VNodeMachineTemplate
+        name: ${CLUSTER_NAME}
+      version: "${KUBERNETES_VERSION}"

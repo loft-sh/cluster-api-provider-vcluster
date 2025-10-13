@@ -1,0 +1,199 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.0
+  name: vnodemachines.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+    - cluster-api
+    kind: VNodeMachine
+    listKind: VNodeMachineList
+    plural: vnodemachines
+    singular: vnodemachine
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    - description: Is machine ready
+      jsonPath: .status.ready
+      name: Ready
+      type: boolean
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VNodeMachine is the Schema for the vnodemachines API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VNodeMachineSpec defines the desired state of VNodeMachine.
+            properties:
+              podTemplate:
+                description: PodTemplate contains the pod template to use for the
+                  machine.
+                properties:
+                  metadata:
+                    description: |-
+                      Standard object's metadata.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+                    type: object
+                  spec:
+                    description: |-
+                      Specification of the desired behavior of the pod.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                type: object
+              providerID:
+                description: ProviderID TBD what to use for VNode
+                type: string
+            type: object
+          status:
+            description: VNodeMachineStatus defines the observed state of VNodeMachine.
+            properties:
+              addresses:
+                description: Addresses contains the associated addresses for the machine.
+                items:
+                  description: MachineAddress contains information for the node's
+                    address.
+                  properties:
+                    address:
+                      description: address is the machine address.
+                      maxLength: 256
+                      minLength: 1
+                      type: string
+                    type:
+                      description: type is the machine address type, one of Hostname,
+                        ExternalIP, InternalIP, ExternalDNS or InternalDNS.
+                      enum:
+                      - Hostname
+                      - ExternalIP
+                      - InternalIP
+                      - ExternalDNS
+                      - InternalDNS
+                      type: string
+                  required:
+                  - address
+                  - type
+                  type: object
+                type: array
+              conditions:
+                description: Conditions defines current service state of the KubevirtMachine.
+                items:
+                  description: Condition defines an observation of a Cluster API resource
+                    operational state.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        Last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed. If that is not known, then using the time when
+                        the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A human readable message indicating details about the transition.
+                        This field may be empty.
+                      type: string
+                    reason:
+                      description: |-
+                        The reason for the condition's last transition in CamelCase.
+                        The specific API may choose whether this field is considered a guaranteed API.
+                        This field may not be empty.
+                      type: string
+                    severity:
+                      description: |-
+                        Severity provides an explicit classification of Reason code, so the users or machines can immediately
+                        understand the current situation and act accordingly.
+                        The Severity field MUST be set only when Status=False.
+                      type: string
+                    status:
+                      description: Status of the condition, one of True, False, Unknown.
+                      type: string
+                    type:
+                      description: |-
+                        Type of condition in CamelCase or in foo.example.com/CamelCase.
+                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions
+                        can be useful (see .node.status.conditions), the ability to deconflict is important.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - status
+                  - type
+                  type: object
+                type: array
+              failureMessage:
+                description: |-
+                  FailureMessage will be set in the event that there is a terminal problem
+                  reconciling the Machine and will contain a more verbose string suitable
+                  for logging and human consumption.
+
+                  This field should not be set for transitive errors that a controller
+                  faces that are expected to be fixed automatically over
+                  time (like service outages), but instead indicate that something is
+                  fundamentally wrong with the Machine's spec or the configuration of
+                  the controller, and that manual intervention is required. Examples
+                  of terminal errors would be invalid combinations of settings in the
+                  spec, values that are unsupported by the controller, or the
+                  responsible controller itself being critically misconfigured.
+
+                  Any transient errors that occur during the reconciliation of Machines
+                  can be added as events to the Machine object and/or logged in the
+                  controller's output.
+                type: string
+              failureReason:
+                description: |-
+                  FailureReason will be set in the event that there is a terminal problem
+                  reconciling the Machine and will contain a succinct value suitable
+                  for machine interpretation.
+
+                  This field should not be set for transitive errors that a controller
+                  faces that are expected to be fixed automatically over
+                  time (like service outages), but instead indicate that something is
+                  fundamentally wrong with the Machine's spec or the configuration of
+                  the controller, and that manual intervention is required. Examples
+                  of terminal errors would be invalid combinations of settings in the
+                  spec, values that are unsupported by the controller, or the
+                  responsible controller itself being critically misconfigured.
+
+                  Any transient errors that occur during the reconciliation of Machines
+                  can be added as events to the Machine object and/or logged in the
+                  controller's output.
+                type: string
+              nodeupdated:
+                description: NodeUpdated denotes that the ProviderID is updated on
+                  Node of this KubevirtMachine
+                type: boolean
+              ready:
+                default: false
+                description: Ready denotes that the machine is ready
+                type: boolean
+            required:
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 	external "sigs.k8s.io/cluster-api/controllers/external"
 )
@@ -37,17 +38,30 @@ func (r *GenericReconciler) patchInfrastructureCluster(ctx context.Context, vClu
 		Namespace:  vCluster.GetNamespace(),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get parent cluster: %w", err)
+		return fmt.Errorf("get parent cluster: %w", err)
 	}
 
 	// find infrastructure cluster
-	apiVersion, _, err := unstructured.NestedString(parentCluster.Object, "spec", "infrastructureRef", "apiVersion")
-	if err != nil {
-		return fmt.Errorf("failed to get infrastructure cluster api version: %w", err)
-	}
 	kind, _, err := unstructured.NestedString(parentCluster.Object, "spec", "infrastructureRef", "kind")
 	if err != nil {
-		return fmt.Errorf("failed to get infrastructure cluster kind: %w", err)
+		return fmt.Errorf("get infrastructure cluster kind: %w", err)
+	}
+	apiVersion, found, err := unstructured.NestedString(parentCluster.Object, "spec", "infrastructureRef", "apiVersion")
+	if !found || err != nil {
+		// try to get the apiGroup (for v1beta2 clusters)
+		apiGroup, _, err := unstructured.NestedString(parentCluster.Object, "spec", "infrastructureRef", "apiGroup")
+		if err != nil {
+			return fmt.Errorf("get infrastructure cluster api group: %w", err)
+		}
+
+		// now find the version from the apiGroup
+		mappings, err := r.Client.RESTMapper().RESTMappings(schema.GroupKind{Group: apiGroup, Kind: kind})
+		if err != nil {
+			return fmt.Errorf("get version for group %s and kind %s: %w", apiGroup, kind, err)
+		} else if len(mappings) == 0 {
+			return fmt.Errorf("no version found for group %s and kind %s", apiGroup, kind)
+		}
+		apiVersion = apiGroup + "/" + mappings[0].GroupVersionKind.Version
 	}
 
 	// check if the infrastructure cluster is a vcluster, if yes then we don't need to patch the infrastructure cluster

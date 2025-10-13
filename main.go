@@ -38,9 +38,7 @@ import (
 	controlplanev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/controlplane/v1alpha1"
 	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/controllers"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/helm"
-	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/kubeconfighelper"
-	"github.com/loft-sh/log/logr"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -54,6 +52,7 @@ func init() {
 
 	utilruntime.Must(infrastructurev1alpha1.AddToScheme(scheme))
 	utilruntime.Must(controlplanev1alpha1.AddToScheme(scheme))
+	utilruntime.Must(clusterv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -104,54 +103,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	rawConfig, err := kubeconfighelper.ConvertRestConfigToRawConfig(mgr.GetConfig())
-	if err != nil {
-		setupLog.Error(err, "unable to get config")
-		os.Exit(1)
-	}
-
-	log, err := logr.NewLoggerWithOptions(
-		logr.WithOptionsFromEnv(),
-		logr.WithComponentName("vcluster-controller"),
-	)
-	if err != nil {
-		setupLog.Error(err, "unable to setup logger")
-		os.Exit(1)
-	}
-
-	// infrastructure vCluster
-	if err = (&controllers.GenericReconciler{
-		ControllerName:     "infrastructure-vcluster",
-		Client:             mgr.GetClient(),
-		HelmClient:         helm.NewClient(rawConfig),
-		HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
-		Log:                log,
-		Scheme:             mgr.GetScheme(),
-		ClientConfigGetter: controllers.NewClientConfigGetter(),
-		HTTPClientGetter:   controllers.NewHTTPClientGetter(),
-		New: func() controllers.GenericVCluster {
-			return &infrastructurev1alpha1.VCluster{}
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
-		os.Exit(1)
-	}
-
-	// controlplane vCluster
-	if err = (&controllers.GenericReconciler{
-		ControllerName:     "controlplane-vcluster",
-		Client:             mgr.GetClient(),
-		HelmClient:         helm.NewClient(rawConfig),
-		HelmSecrets:        helm.NewSecrets(mgr.GetClient()),
-		Log:                log,
-		Scheme:             mgr.GetScheme(),
-		ClientConfigGetter: controllers.NewClientConfigGetter(),
-		HTTPClientGetter:   controllers.NewHTTPClientGetter(),
-		New: func() controllers.GenericVCluster {
-			return &controlplanev1alpha1.VCluster{}
-		},
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VCluster")
+	ctx := ctrl.SetupSignalHandler()
+	if err := controllers.RegisterControllers(ctx, mgr); err != nil {
+		setupLog.Error(err, "unable to register controllers")
 		os.Exit(1)
 	}
 
@@ -165,7 +119,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}

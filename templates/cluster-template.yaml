@@ -1,14 +1,14 @@
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
   name: ${CLUSTER_NAME}
 spec:
   infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    apiGroup: infrastructure.cluster.x-k8s.io
     kind: VCluster
     name: ${CLUSTER_NAME}
   controlPlaneRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    apiGroup: infrastructure.cluster.x-k8s.io
     kind: VCluster
     name: ${CLUSTER_NAME}
 ---
@@ -23,6 +23,3 @@ spec:
       name: ${CHART_NAME:=vcluster}
       repo: ${CHART_REPO:=https://charts.loft.sh}
       version: ${CHART_VERSION:=""}
-  controlPlaneEndpoint:
-    host: ${VCLUSTER_HOST:=""}
-    port: ${VCLUSTER_PORT:=0}
