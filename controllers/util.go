@@ -191,7 +191,7 @@ func DiscoverHostFromService(ctx context.Context, client client.Client, vCluster
 	host := ""
 	service := &corev1.Service{}
 	err := wait.PollUntilContextTimeout(ctx, time.Second*2, time.Second*30, true, func(ctx context.Context) (done bool, err error) {
-		err = client.Get(ctx, types.NamespacedName{Namespace: vCluster.GetNamespace(), Name: vCluster.GetName()}, service)
+		err = client.Get(ctx, types.NamespacedName{Namespace: vCluster.GetStatus().TargetNamespace, Name: vCluster.GetName()}, service)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				return true, nil
@@ -245,7 +245,7 @@ func GetVClusterKubeConfig(ctx context.Context, clusterClient client.Client, vCl
 	secretName := "vc-" + vCluster.GetName()
 
 	secret := &corev1.Secret{}
-	err := clusterClient.Get(ctx, types.NamespacedName{Namespace: vCluster.GetNamespace(), Name: secretName}, secret)
+	err := clusterClient.Get(ctx, types.NamespacedName{Namespace: vCluster.GetStatus().TargetNamespace, Name: secretName}, secret)
 	if err != nil {
 		return nil, err
 	}

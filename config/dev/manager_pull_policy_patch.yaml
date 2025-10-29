@@ -10,3 +10,8 @@ spec:
       - name: manager
         image: localhost:30115/cluster-api-provider-vcluster:main
         imagePullPolicy: Always
+        # env:
+        # - name: DEVELOPMENT
+        #   value: "true"
+        # - name: LOFT_LOG_DISABLE_STACKTRACE
+        #   value: "false"
