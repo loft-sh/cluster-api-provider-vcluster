@@ -90,6 +90,10 @@ spec:
                         description: the version of the helm chart to use
                         type: string
                     type: object
+                  targetNamespace:
+                    description: the target namespace to which the given chart will
+                      be installed (will be created if nonexistent)
+                    type: string
                   values:
                     description: the values for the given chart
                     type: string
@@ -186,6 +190,10 @@ spec:
                 description: |-
                   Reason describes the reason in machine readable form why the cluster is in the current
                   phase
+                type: string
+              targetNamespace:
+                description: TargetNamespace is the namespace to which the vcluster
+                  was attempted to install
                 type: string
             type: object
         type: object

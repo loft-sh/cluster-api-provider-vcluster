@@ -78,6 +78,10 @@ type VClusterStatus struct {
 	// is externally managed.
 	// +optional
 	ExternalManagedControlPlane *bool `json:"externalManagedControlPlane,omitempty"`
+
+	// TargetNamespace is the namespace to which the vcluster was attempted to install
+	// +optional
+	TargetNamespace string `json:"targetNamespace,omitempty"`
 }
 
 // GetConditions returns the set of conditions for this object.
@@ -94,6 +98,10 @@ type VirtualClusterHelmRelease struct {
 	// infos about what chart to deploy
 	// +optional
 	Chart VirtualClusterHelmChart `json:"chart,omitempty"`
+
+	// the target namespace to which the given chart will be installed (will be created if nonexistent)
+	// +optional
+	TargetNamespace string `json:"targetNamespace,omitempty"`
 
 	// the values for the given chart
 	// +optional

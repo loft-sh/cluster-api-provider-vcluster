@@ -79,37 +79,15 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		if !kerrors.IsNotFound(err) {
 			return ctrl.Result{}, err
 		}
-
 		return ctrl.Result{}, nil
-	}
-
-	// is deleting?
-	if vCluster.GetDeletionTimestamp() != nil {
-		// check if namespace is deleting
-		namespace := &corev1.Namespace{}
-		err := r.Client.Get(ctx, types.NamespacedName{Name: req.Namespace}, namespace)
-		if err != nil {
-			return ctrl.Result{}, nil
-		} else if namespace.DeletionTimestamp != nil {
-			return ctrl.Result{}, RemoveFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
-		}
-
-		err = deleteHelmChart(ctx, r.HelmClient, r.HelmSecrets, req.Namespace, req.Name, r.Log)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-
-		// delete the persistent volume claim
-		err = r.Client.Delete(ctx, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: "data-" + vCluster.GetName() + "-0", Namespace: req.Namespace}})
-		if err != nil && !kerrors.IsNotFound(err) {
-			return ctrl.Result{}, err
-		}
-
-		return ctrl.Result{}, RemoveFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	}
 
 	// is there an owner Cluster CR set by CAPI cluster controller?
 	// only check when installed via CAPI - Cluster CRD is present
+	r.Log.V(1).Info("checking cluster kind exists",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 	if r.clusterKindExists {
 		clusterOwner := false
 		for _, v := range vCluster.GetOwnerReferences() {
@@ -127,12 +105,20 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 	}
 
 	// ensure finalizer
+	r.Log.V(1).Info("ensuring finalizer",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 	err = EnsureFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("ensure finalizer: %w", err)
 	}
 
 	// Initialize the patch helper.
+	r.Log.V(1).Info("initializing patch helper",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 	patchHelper, err := patch.NewHelper(vCluster, r.Client)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -152,7 +138,35 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		}
 	}()
 
+	// get the vCluster target namespace, where the vCluster must be deployed
+	targetNamespace, _ := r.getTargetNamespace(ctx, vCluster)
+
+	// If conditions require, delete the VCluster
+	r.Log.V(1).Info("checking cluster deletion needed",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
+	// if vcluster is deleting, cleanup
+	if vCluster.GetDeletionTimestamp() != nil {
+		err = r.deleteVCluster(ctx, vCluster)
+		if err != nil {
+			return ctrl.Result{RequeueAfter: time.Second * 5}, err
+		}
+		return ctrl.Result{}, err
+	}
+	// if desired and previously targeted namespaces are different, cleanup
+	if conditions.IsTrue(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition) && vCluster.GetStatus().TargetNamespace != targetNamespace {
+		err = r.deleteVCluster(ctx, vCluster)
+		if err != nil {
+			return ctrl.Result{RequeueAfter: time.Second * 5}, err
+		}
+	}
+
 	// check if we have to redeploy
+	r.Log.V(1).Info("attempting redeploy",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 	err = r.redeployIfNeeded(ctx, vCluster)
 	if err != nil {
 		r.Log.Error(err, "error during virtual cluster deploy",
@@ -185,6 +199,10 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		conditions.MarkFalse(vCluster, infrastructurev1alpha1.InfrastructureClusterSyncedCondition, "PatchFailed", infrastructurev1alpha1.ConditionSeverityError, "%v", err)
 		return ctrl.Result{}, err
 	}
+	r.Log.V(1).Info("vCluster infrastructure cluster synced",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 	conditions.MarkTrue(vCluster, infrastructurev1alpha1.InfrastructureClusterSyncedCondition)
 
 	// check if vcluster is ready
@@ -193,6 +211,11 @@ func (r *GenericReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ 
 		r.Log.V(1).Info("readiness check failed", "err", err)
 		return ctrl.Result{RequeueAfter: time.Second * 5}, nil
 	}
+
+	r.Log.V(1).Info("vCluster requeue",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+	)
 
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
@@ -236,13 +259,65 @@ func (r *GenericReconciler) reconcilePhase(vCluster GenericVCluster) {
 	}
 }
 
-func (r *GenericReconciler) redeployIfNeeded(_ context.Context, vCluster GenericVCluster) error {
-	if vCluster.GetGeneration() == vCluster.GetStatus().ObservedGeneration &&
-		conditions.IsTrue(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition) {
+// deleteVCluster deletes the vCluster resources
+func (r *GenericReconciler) deleteVCluster(ctx context.Context, vCluster GenericVCluster) error {
+
+	// if target namespace is deleting, remove helm cleanup finalizer
+	namespace := &corev1.Namespace{}
+	err := r.Client.Get(ctx, types.NamespacedName{Name: vCluster.GetStatus().TargetNamespace}, namespace)
+	if err != nil {
 		return nil
+	} else if namespace.DeletionTimestamp != nil {
+		conditions.MarkFalse(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition, "HelmDeployDeleted", infrastructurev1alpha1.ConditionSeverityError, "%v", err)
+		vCluster.GetStatus().TargetNamespace = ""
+		return RemoveFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
+	}
+	// delete the helm chart
+	err = deleteHelmChart(ctx, r.HelmClient, r.HelmSecrets, vCluster.GetStatus().TargetNamespace, vCluster.GetName(), r.Log)
+	if err != nil {
+		r.Log.Error(err, "could not delete helmchart",
+			"name", vCluster.GetName(),
+			"namespace", vCluster.GetStatus().TargetNamespace,
+		)
+		return err
 	}
 
+	// delete the persistent volume claim
+	err = r.Client.Delete(ctx, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: "data-" + vCluster.GetName() + "etcd-0", Namespace: vCluster.GetStatus().TargetNamespace}})
+	if err != nil && !kerrors.IsNotFound(err) {
+		r.Log.Error(err, "could not delete pvc",
+			"name", "data-"+vCluster.GetName()+"etcd-0",
+			"namespace", vCluster.GetStatus().TargetNamespace,
+		)
+		return err
+	}
+
+	vCluster.GetStatus().TargetNamespace = ""
+
+	// mark the condition as deleted
+	conditions.MarkFalse(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition, "HelmDeployDeleted", infrastructurev1alpha1.ConditionSeverityError, "%v", err)
+	r.Log.V(1).Info("deleted vcluster helmchartdeployed condition marked false",
+		"namespace", vCluster.GetNamespace(),
+		"name", vCluster.GetName(),
+		"vcluster", fmt.Sprintf("%+v", vCluster),
+	)
+
+	// remove the finalizer
+	return RemoveFinalizer(ctx, r.Client, vCluster, CleanupFinalizer)
+}
+
+func (r *GenericReconciler) redeployIfNeeded(ctx context.Context, vCluster GenericVCluster) error {
+	targetNamespace, targetNamespaceExists := r.getTargetNamespace(ctx, vCluster)
 	logger := r.Log
+
+	if vCluster.GetGeneration() == vCluster.GetStatus().ObservedGeneration &&
+		conditions.IsTrue(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition) {
+		logger.V(1).Info("vcluster up-to-date",
+			"namespace", vCluster.GetNamespace(),
+			"name", vCluster.GetName(),
+		)
+		return nil
+	}
 
 	chartRepo := constants.DefaultVClusterRepo
 	if vCluster.GetSpec().HelmRelease != nil && vCluster.GetSpec().HelmRelease.Chart.Repo != "" {
@@ -288,6 +363,7 @@ func (r *GenericReconciler) redeployIfNeeded(_ context.Context, vCluster Generic
 			"chartRepo", chartRepo,
 			"chartName", chartName,
 			"chartVersion", chartVersion,
+			"targetNamespace", targetNamespace,
 			"values", values,
 		)
 	} else {
@@ -297,6 +373,7 @@ func (r *GenericReconciler) redeployIfNeeded(_ context.Context, vCluster Generic
 			"chartRepo", chartRepo,
 			"chartName", chartName,
 			"chartVersion", chartVersion,
+			"targetNamespace", targetNamespace,
 			"values", values,
 		)
 	}
@@ -309,19 +386,27 @@ func (r *GenericReconciler) redeployIfNeeded(_ context.Context, vCluster Generic
 	}
 
 	_, err := os.Stat(chartPath)
+
+	// set target namespace of helm release upgrade to be attempted
+	vCluster.GetStatus().TargetNamespace = targetNamespace
+
 	if err != nil {
 		// we have to upgrade / install the chart
-		err = r.HelmClient.Upgrade(vCluster.GetName(), vCluster.GetNamespace(), helm.UpgradeOptions{
-			Chart:   chartName,
-			Repo:    chartRepo,
-			Version: chartVersion,
-			Values:  values,
+		err = r.HelmClient.Upgrade(vCluster.GetName(), targetNamespace, helm.UpgradeOptions{
+			Chart:                 chartName,
+			Repo:                  chartRepo,
+			Version:               chartVersion,
+			CreateNamespace:       !targetNamespaceExists,
+			Values:                values,
+			InsecureSkipTLSVerify: true,
 		})
 	} else {
 		// we have to upgrade / install the chart
-		err = r.HelmClient.Upgrade(vCluster.GetName(), vCluster.GetNamespace(), helm.UpgradeOptions{
-			Path:   chartPath,
-			Values: values,
+		err = r.HelmClient.Upgrade(vCluster.GetName(), targetNamespace, helm.UpgradeOptions{
+			Path:                  chartPath,
+			CreateNamespace:       !targetNamespaceExists,
+			Values:                values,
+			InsecureSkipTLSVerify: true,
 		})
 	}
 	if err != nil {
@@ -333,22 +418,56 @@ func (r *GenericReconciler) redeployIfNeeded(_ context.Context, vCluster Generic
 	}
 
 	conditions.MarkTrue(vCluster, infrastructurev1alpha1.HelmChartDeployedCondition)
+	conditions.Delete(vCluster, infrastructurev1alpha1.ControlPlaneInitializedCondition)
 	conditions.Delete(vCluster, infrastructurev1alpha1.KubeconfigReadyCondition)
 
 	return nil
 }
 
+// getTargetNamespace returns the desired namespace and the desired namespace existence of the vcluster.
+func (r *GenericReconciler) getTargetNamespace(ctx context.Context, vCluster GenericVCluster) (string, bool) {
+	var targetNamespace string
+	targetNamespaceExists := false
+	if vCluster.GetSpec().HelmRelease != nil && vCluster.GetSpec().HelmRelease.TargetNamespace != "" {
+		targetNamespace = vCluster.GetSpec().HelmRelease.TargetNamespace
+		// check if targetNamespace exists
+		namespace := &corev1.Namespace{}
+		err := r.Client.Get(ctx, types.NamespacedName{Name: targetNamespace}, namespace)
+		if err != nil {
+			targetNamespaceExists = false
+		} else {
+			targetNamespaceExists = true
+		}
+	} else {
+		targetNamespace = vCluster.GetNamespace()
+		targetNamespaceExists = true
+	}
+	return targetNamespace, targetNamespaceExists
+}
+
 func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster GenericVCluster) (*rest.Config, error) {
+	r.Log.V(1).Info("getting credentials",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
 	credentials, err := GetVClusterCredentials(ctx, r.Client, vCluster)
 	if err != nil {
 		return nil, err
 	}
 
-	restConfig, err := kubeconfighelper.NewVClusterClientConfig(vCluster.GetName(), vCluster.GetNamespace(), "", credentials.ClientCert, credentials.ClientKey)
+	r.Log.V(1).Info("creating vcluster client",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
+	restConfig, err := kubeconfighelper.NewVClusterClientConfig(vCluster.GetName(), vCluster.GetStatus().TargetNamespace, "", credentials.ClientCert, credentials.ClientKey)
 	if err != nil {
 		return nil, err
 	}
 
+	r.Log.V(1).Info("configuring vcluster client with kubeconfig",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
 	kubeClient, err := r.ClientConfigGetter.NewForConfig(restConfig)
 	if err != nil {
 		return nil, err
@@ -359,36 +478,10 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 
 	// if we haven't checked if the vcluster is initialized, do it now
 	if !conditions.IsTrue(vCluster, infrastructurev1alpha1.ControlPlaneInitializedCondition) {
-		_, err = kubeClient.CoreV1().ServiceAccounts("default").Get(ctxTimeout, "default", metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
 
-		conditions.MarkTrue(vCluster, infrastructurev1alpha1.ControlPlaneInitializedCondition)
-	}
-	// setting .Status.Initialized outside of the condition above to ensure
-	// that it is set on old CRs, which were missing this field, as well
-	vCluster.GetStatus().Initialized = true
-
-	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
-	kubeConfig, err := GetVClusterKubeConfig(ctx, r.Client, vCluster)
-	if err != nil {
-		return nil, fmt.Errorf("can not retrieve kubeconfig: %w", err)
-	}
-	if len(kubeConfig.Clusters) != 1 {
-		return nil, fmt.Errorf("unexpected kube config")
-	}
-
-	// If vcluster.spec.controlPlaneEndpoint.Host is not set, try to autodiscover it from
-	// the Service that targets vcluster pods, and write it back into the spec.
-	controlPlaneEndpoint := vCluster.GetSpec().ControlPlaneEndpoint
-	if controlPlaneEndpoint == nil {
-		controlPlaneEndpoint = &clusterv1.APIEndpoint{}
-	}
-
-	controlPlaneHost := controlPlaneEndpoint.Host
-	if controlPlaneHost == "" {
-		controlPlaneHost, err = DiscoverHostFromService(ctx, r.Client, vCluster)
+		// If vcluster.spec.controlPlaneEndpoint.Host is not set, try to autodiscover it from
+		// the Service that targets vcluster pods, and write it back into the spec.
+		controlPlaneHost, err := DiscoverHostFromService(ctx, r.Client, vCluster)
 		if err != nil {
 			return nil, err
 		}
@@ -401,15 +494,33 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 		if vCluster.GetSpec().ControlPlaneEndpoint.Port == 0 {
 			vCluster.GetSpec().ControlPlaneEndpoint.Port = DefaultControlPlanePort
 		}
+
+		_, err = kubeClient.CoreV1().ServiceAccounts("default").Get(ctxTimeout, "default", metav1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+		conditions.MarkTrue(vCluster, infrastructurev1alpha1.ControlPlaneInitializedCondition)
+		// setting .Status.Initialized outside of the condition above to ensure
+		// that it is set on old CRs, which were missing this field, as well
+		vCluster.GetStatus().Initialized = true
+	}
+
+	// write kubeconfig to the vcluster.Name+"-kubeconfig" Secret as expected by CAPI convention
+	kubeConfig, err := GetVClusterKubeConfig(ctx, r.Client, vCluster)
+	if err != nil {
+		return nil, fmt.Errorf("can not retrieve kubeconfig: %w", err)
+	}
+	if len(kubeConfig.Clusters) != 1 {
+		return nil, fmt.Errorf("unexpected kube config")
 	}
 
 	for k := range kubeConfig.Clusters {
 		host := kubeConfig.Clusters[k].Server
-		if controlPlaneHost != "" {
+		if vCluster.GetSpec().ControlPlaneEndpoint.Host != "" {
 			if vCluster.GetSpec().ControlPlaneEndpoint.Port != 0 {
-				host = fmt.Sprintf("%s:%d", controlPlaneHost, vCluster.GetSpec().ControlPlaneEndpoint.Port)
+				host = fmt.Sprintf("%s:%d", vCluster.GetSpec().ControlPlaneEndpoint.Host, vCluster.GetSpec().ControlPlaneEndpoint.Port)
 			} else {
-				host = fmt.Sprintf("%s:%d", controlPlaneHost, DefaultControlPlanePort)
+				host = fmt.Sprintf("%s:%d", vCluster.GetSpec().ControlPlaneEndpoint.Host, DefaultControlPlanePort)
 			}
 		}
 		if !strings.HasPrefix(host, "https://") {
@@ -434,6 +545,10 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 		}
 	}
 
+	r.Log.V(1).Info("writing kubeconfig",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
 	// create kubeconfig secret
 	kubeSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -455,9 +570,13 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 		return nil, fmt.Errorf("can not create a kubeconfig secret: %w", err)
 	}
 
+	r.Log.V(1).Info("writing ca secret",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
 	// create ca secret
 	certsSecret := &corev1.Secret{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s-certs", vCluster.GetName()), Namespace: vCluster.GetNamespace()}, certsSecret)
+	err = r.Client.Get(ctx, types.NamespacedName{Name: fmt.Sprintf("%s-certs", vCluster.GetName()), Namespace: vCluster.GetStatus().TargetNamespace}, certsSecret)
 	if err != nil {
 		return nil, fmt.Errorf("can not get certs secret: %w", err)
 	}
@@ -481,7 +600,12 @@ func (r *GenericReconciler) syncVClusterKubeconfig(ctx context.Context, vCluster
 		return nil, fmt.Errorf("can not create a kubeconfig secret: %w", err)
 	}
 
+	r.Log.V(1).Info("marking kubeconfig secret as ready",
+		"namespace", vCluster.GetNamespace(),
+		"clusterName", vCluster.GetName(),
+	)
 	conditions.MarkTrue(vCluster, infrastructurev1alpha1.KubeconfigReadyCondition)
+
 	return restConfig, nil
 }
 

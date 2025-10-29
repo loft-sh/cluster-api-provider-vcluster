@@ -50,7 +50,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			reconciler *controllers.GenericReconciler
 			ctx        context.Context
 			scheme     *runtime.Scheme
-			hemlClient *MockHelmClient
+			helmClient *MockHelmClient
 			secret     *corev1.Secret
 		)
 
@@ -65,7 +65,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
 			ctx = context.Background()
-			hemlClient = &MockHelmClient{}
+			helmClient = &MockHelmClient{}
 
 			secret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -92,7 +92,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					},
 				},
 			}
-			hemlClient.On("Upgrade").Return(nil)
+			helmClient.On("Upgrade").Return(nil)
 			f := fakeclientset.NewSimpleClientset()
 
 			_, err := f.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
@@ -105,7 +105,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 
 			reconciler = &controllers.GenericReconciler{
 				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
-				HelmClient: hemlClient,
+				HelmClient: helmClient,
 				Scheme:     scheme,
 				ClientConfigGetter: &fakeConfigGetter{
 					fake: f,
@@ -124,6 +124,56 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 			result, err := reconciler.Reconcile(ctx, req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Second * 5))
+		})
+
+		ginkgo.It("reconcile successfully on k8s with targetNamespace", func() {
+			targetNamespace := "test-namespace"
+			vCluster := &v1alpha1.VCluster{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-vcluster",
+					Namespace: "default",
+				},
+				Spec: v1alpha1.VClusterSpec{
+					HelmRelease: &v1alpha1.VirtualClusterHelmRelease{
+						TargetNamespace: targetNamespace,
+						Chart: v1alpha1.VirtualClusterHelmChart{
+							Version: "0.22.1",
+						},
+					},
+				},
+			}
+			helmClient.On("Upgrade").Return(nil)
+			f := fakeclientset.NewSimpleClientset()
+
+			_, err := f.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "default",
+					Namespace: "default",
+				},
+			}, metav1.CreateOptions{})
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			reconciler = &controllers.GenericReconciler{
+				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
+				HelmClient: helmClient,
+				Scheme:     scheme,
+				ClientConfigGetter: &fakeConfigGetter{
+					fake: f,
+				},
+				HTTPClientGetter: &fakeHTTPClientGetter{},
+				New: func() controllers.GenericVCluster {
+					return &v1alpha1.VCluster{}
+				},
+			}
+			req := ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      vCluster.Name,
+					Namespace: vCluster.Namespace,
+				},
+			}
+			result, err := reconciler.Reconcile(ctx, req)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(result.RequeueAfter).Should(gomega.Equal(time.Second * 5))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		})
 
 		ginkgo.It("reconcile successfully on k3s", func() {
@@ -153,7 +203,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 					},
 				},
 			}
-			hemlClient.On("Upgrade").Return(nil)
+			helmClient.On("Upgrade").Return(nil)
 			f := fakeclientset.NewSimpleClientset()
 
 			_, err := f.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
@@ -166,7 +216,7 @@ var _ = ginkgo.Describe("Vcluster Controller test", func() {
 
 			reconciler = &controllers.GenericReconciler{
 				Client:     fakeclient.NewClientBuilder().WithScheme(scheme).WithObjects(vCluster, secret).WithStatusSubresource(vCluster).Build(),
-				HelmClient: hemlClient,
+				HelmClient: helmClient,
 				Scheme:     scheme,
 				ClientConfigGetter: &fakeConfigGetter{
 					fake: f,
