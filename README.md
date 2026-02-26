@@ -55,7 +55,7 @@ With the `clusterctl generate cluster` command we are producing a manifest with 
 Below you may find an example of these two CRs with the comments explaining important fields.
 
 ``` yaml
-apiVersion: cluster.x-k8s.io/v1beta1
+apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
   name: ${CLUSTER_NAME}
@@ -63,12 +63,12 @@ spec:
   # Two *Ref fields below must reference VCluster CR by name
   # in order to conform to the CAPI contract   
   infrastructureRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    apiGroup: infrastructure.cluster.x-k8s.io
     kind: VCluster
     # name field must match .metadata.name of the VCluster CR
     name: ${CLUSTER_NAME}
   controlPlaneRef:
-    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
+    apiGroup: infrastructure.cluster.x-k8s.io
     kind: VCluster
     # name field must match .metadata.name of the VCluster CR
     name: ${CLUSTER_NAME}
