@@ -8,7 +8,6 @@ import (
 	infrastructurev1alpha1 "github.com/loft-sh/cluster-api-provider-vcluster/api/infrastructure/v1alpha1"
 	"github.com/loft-sh/cluster-api-provider-vcluster/pkg/util/patch"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
@@ -24,21 +23,21 @@ func (r *GenericReconciler) patchInfrastructureCluster(ctx context.Context, vClu
 		return nil
 	}
 
-	// get owner reference
-	ownerRef := metav1.GetControllerOf(vCluster)
-	if ownerRef == nil {
-		return fmt.Errorf("no controller owner reference found")
-	}
+	parentCluster := &unstructured.Unstructured{}
+	for _, v := range vCluster.GetOwnerReferences() {
+		if v.Kind == "Cluster" {
+			var err error
+			parentCluster, err = external.Get(ctx, r.Client, &corev1.ObjectReference{
+				APIVersion: v.APIVersion,
+				Kind:       v.Kind,
+				Name:       v.Name,
+				Namespace:  vCluster.GetNamespace(),
+			})
 
-	// get the parent cluster
-	parentCluster, err := external.Get(ctx, r.Client, &corev1.ObjectReference{
-		APIVersion: ownerRef.APIVersion,
-		Kind:       ownerRef.Kind,
-		Name:       ownerRef.Name,
-		Namespace:  vCluster.GetNamespace(),
-	})
-	if err != nil {
-		return fmt.Errorf("get parent cluster: %w", err)
+			if err != nil {
+				return fmt.Errorf("get parent cluster: %w", err)
+			}
+		}
 	}
 
 	// find infrastructure cluster
