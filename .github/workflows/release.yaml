@@ -13,13 +13,13 @@ jobs:
       contents: write
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: get_version
         run: |
           RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/v!!p')
           echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: "go.mod"
           cache: false
@@ -29,12 +29,12 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.get_version.outputs.release_version }}
       - name: Save release assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-assets
           path: release/
       - name: Attach assets to release
-        uses: FabianKramm/release-asset-action@v1
+        uses: FabianKramm/release-asset-action@6a964e8a644f28832c3f9a46abc69dda52fc6d17 # v1
         with:
           pattern: "release/*"
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -42,17 +42,17 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') == true
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: get_version
         run: |
           RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/v!!p')
           echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@27d0a4f181a40b142cce983c5393082c365d1480 # v1.2.0
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@f211e3e9ded2d9377c8cadc4489a4e38014bc4c9 # v1.7.0
       - name: Login to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -68,14 +68,14 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 300
       - id: get_version
         run: |
           RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/!!p')
           echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
-      - uses: geertvdc/setup-hub@v1.0.0
+      - uses: geertvdc/setup-hub@6e25db3724286a7e22462875f86c341a8ff2397b # v1.0.0
         env:
           ACTIONS_ALLOW_UNSECURE_COMMANDS: true
       - run: |
@@ -102,13 +102,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - id: get_version
         run: |
           RELEASE_VERSION=$(echo $GITHUB_REF | sed -nE 's!refs/tags/!!p')
           echo "release_version=$RELEASE_VERSION" >> "$GITHUB_OUTPUT"
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: "go.mod"
           cache: false
