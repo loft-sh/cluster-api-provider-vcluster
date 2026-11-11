@@ -78,7 +78,7 @@ capi-kubeadm-bootstrap-system          Active   2m12s
 capi-kubeadm-control-plane-system      Active   2m12s
 capi-system                            Active   2m12s
 cert-manager                           Active   2m23s
-cluster-api-provider-vcluster-system   Active   2m11s
+capv-system                            Active   2m11s
 default                                Active   7m4s
 kube-node-lease                        Active   7m5s
 kube-public                            Active   7m5s
