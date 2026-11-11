@@ -147,16 +147,25 @@ PULL_POLICY ?= Always
 
 .PHONY: release
 release: manifests kustomize ## Builds the manifests to publish with a release.
-	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
-	sed -i'' -e 's@imagePullPolicy: IfNotPresent@imagePullPolicy: '"$(PULL_POLICY)"'@' ./config/default/manager_pull_policy_patch.yaml
-	sed -i'' -e 's@name: cluster-admin@name: $${CLUSTER_ROLE:=cluster-admin}@' ./config/rbac/provider_role_binding.yaml
-	mkdir -p $(RELEASE_DIR)/
-	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
-	cp templates/cluster-template* $(RELEASE_DIR)/
+	set -e; \
+	FILES="./config/default/manager_image_patch.yaml ./config/default/manager_pull_policy_patch.yaml ./config/rbac/provider_role_binding.yaml"; \
+	for f in $$FILES; do cp "$$f" "$$f.orig"; done; \
+	restore() { \
+		for f in $$FILES; do \
+			if [ -f "$$f.orig" ]; then \
+				mv -f "$$f.orig" "$$f"; \
+			fi; \
+		done; \
+		rm -f ./config/default/*.bak ./config/rbac/*.bak; \
+	}; \
+	trap restore EXIT; \
+	sed -i.bak -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml; \
+	sed -i.bak -e 's@imagePullPolicy: .*@imagePullPolicy: '"$(PULL_POLICY)"'@' ./config/default/manager_pull_policy_patch.yaml; \
+	sed -i.bak -e 's@name: cluster-admin@name: $${CLUSTER_ROLE:=cluster-admin}@' ./config/rbac/provider_role_binding.yaml; \
+	mkdir -p $(RELEASE_DIR)/; \
+	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/infrastructure-components.yaml; \
+	cp templates/cluster-template* $(RELEASE_DIR)/; \
 	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
-	sed -i'' -e 's@image: .*@image: ghcr.io/loft-sh/cluster-api-provider-vcluster:main@' ./config/default/manager_image_patch.yaml
-	sed -i'' -e 's@imagePullPolicy: '"$(PULL_POLICY)"'@imagePullPolicy: IfNotPresent@' ./config/default/manager_pull_policy_patch.yaml
-	sed -i'' -e 's@name: $${CLUSTER_ROLE:=cluster-admin}@name: cluster-admin@' ./config/rbac/provider_role_binding.yaml
 
 # Make sure to use the right remote TARGETARCH via make deploy-via-local-registry TARGETARCH=amd64
 .PHONY: deploy-via-local-registry
@@ -181,5 +190,5 @@ deploy-via-local-registry: docker-build # Pushes the locally build image into th
 	  # Kill the port-forward process
 	  kill $$PORT_FORWARD_PID || true
 	# Delete the existing controller
-	kubectl delete po -l control-plane=cluster-api-provider-vcluster-controller-manager -n cluster-api-provider-vcluster-system --ignore-not-found
+	kubectl delete po -l control-plane=capv-controller-manager -n capv-system --ignore-not-found
 	$(KUSTOMIZE) build config/dev | kubectl apply -f -
